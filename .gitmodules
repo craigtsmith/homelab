@@ -1,0 +1,3 @@
+[submodule "nsupdate-client"]
+	path = nsupdate-client
+	url = git@github.com:craigtsmith/nsupdate-client.git

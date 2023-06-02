@@ -1,0 +1,67 @@
+- name: Download cloud image
+  become: true
+  get_url:
+    url: "{{ cloud_image_url }}"
+    dest: "~/cloudimage.img"
+
+- name: Resize image
+  become: true
+  changed_when: false
+  command: qemu-img resize cloudimage.img +20G
+
+- name: Install libguestfs-tools
+  become: true
+  apt:
+    name: libguestfs-tools
+    state: present
+    update_cache: true
+
+- name: Install guest agent in image
+  become: true
+  changed_when: false
+  command: virt-customize -a ~/cloudimage.img --install qemu-guest-agent
+
+- name: Create a new virtual machine
+  become: true
+  changed_when: false
+  command: qm create {{ pve[inventory_hostname]['ubuntu-template-id'] }} --name "template-ubuntu-cloud" --memory 4000 --cores 4 --net0 virtio,bridge=vmbr0
+
+- name: Import the downloaded Ubuntu disk to local-lvm storage
+  become: true
+  changed_when: false
+  command: qm importdisk {{ pve[inventory_hostname]['ubuntu-template-id'] }} ~/focal-server-cloudimg-amd64.img local-lvm
+
+- name: Attach the new disk to the vm as a scsi drive on the scsi controller
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-{{ pve[inventory_hostname]['ubuntu-template-id'] }}-disk-0,size=25G
+
+- name: Add cloud init drive
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --ide2 local-lvm:cloudinit
+
+- name: Make the cloud init drive bootable and restrict BIOS to boot from disk only
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --boot c --bootdisk scsi0
+
+- name: Add serial console
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --serial0 socket --vga serial0
+
+- name: Set agent as enabled
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --agent enabled=1
+
+- name: Set cloud init snippets
+  become: true
+  changed_when: false
+  command: qm set {{ pve[inventory_hostname]['ubuntu-template-id'] }} --cicustom user=cloudinit:snippets/user.yml
+
+- name: Create template from image
+  become: true
+  changed_when: false
+  command: qm template {{ pve[inventory_hostname]['ubuntu-template-id'] }}

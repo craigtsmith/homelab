@@ -1,0 +1,65 @@
+- name: Setup PVE node
+  vars_files: [lib/vars.yml]
+  hosts: pve
+  remote_user: root
+  become: true
+  tasks:
+    - name: Add SSH Key
+      import_tasks: ../tasks/authorized-key.yml
+
+    - name: Update /etc/apt/sources.list
+      copy:
+        src: ../src/pve/etc/apt/sources.list
+        dest: /etc/apt/sources.list
+        backup: true
+      notify:
+        - Apt update
+
+    - name: Update /etc/apt/sources.list.d/pve-enterprise.list
+      copy:
+        src: ../src/pve/etc/apt/sources.list.d/pve-enterprise.list
+        dest: /etc/apt/sources.list.d/pve-enterprise.list
+        backup: true
+      notify:
+        - Apt update
+
+    - name: Update /etc/kernel/cmdline
+      copy:
+        src: ../src/pve/etc/kernel/cmdline
+        dest: /etc/kernel/cmdline
+        backup: true
+      notify:
+        - Update initramfs
+
+    - name: Update /etc/modules
+      copy:
+        src: ../src/pve/etc/modules
+        dest: /etc/modules
+        backup: true
+      notify:
+        - Update initramfs
+
+    - name: Create Storage
+      import_tasks: ../tasks/create-storage.yml
+
+    - name: Copy cloudinit snippets
+      import_tasks: ../tasks/copy-cloud-init-snippets.yml
+
+    - name: Create Ubuntu Template
+      import_tasks: ../tasks/create-ubuntu-template.yml
+
+  handlers:
+    - name: Apt update
+      apt:
+        update_cache: true
+        upgrade: dist
+      notify:
+        - Reboot server
+
+    - name: Update initramfs
+      command: update-initramfs -u -k all
+      notify:
+        - Reboot server
+
+    - name: Reboot server
+      reboot:

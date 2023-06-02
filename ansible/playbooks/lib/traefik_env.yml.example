@@ -1,0 +1,2 @@
+MY_ENV_VAR: ${SOME_ENV_VAR?Variable not set}
+SOME_OTHER_VAR: true

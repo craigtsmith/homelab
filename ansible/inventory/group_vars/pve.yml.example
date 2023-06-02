@@ -1,0 +1,10 @@
+# Define each of your physical ProxMox nodes here
+# Only change the IP Addresses used here
+
+pve:
+  192.168.100.10:
+    ubuntu-template-id: 9010
+  192.168.100.20:
+    ubuntu-template-id: 9020
+  192.168.100.30:
+    ubuntu-template-id: 9030

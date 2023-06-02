@@ -1,0 +1,21 @@
+dir: local
+	path /var/lib/vz
+	content backup,vztmpl,iso
+
+lvmthin: local-lvm
+	thinpool data
+	vgname pve
+	content images,rootdir
+
+nfs: nas-homelab
+    export {{ nas_pve_path }}
+    path {{ nas_pve_mount_point }}
+    server {{ nas_host }}
+    content backup,iso,images
+    prune-backups keep-all=1
+
+dir: cloudinit
+	path /root/snippets/cloudinit
+	content snippets
+	prune-backups keep-all=1
+	shared 1

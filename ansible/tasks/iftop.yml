@@ -1,0 +1,6 @@
+- name: Install latest iftop on all hosts
+  become: true
+  apt:
+    name: iftop
+    state: present
+    update_cache: true

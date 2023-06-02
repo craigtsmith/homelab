@@ -1,0 +1,11 @@
+- name: Copy /root/snippets/cloudinit/snippets/user.yml
+  template:
+    src: ../src/pve/root/snippets/cloudinit/snippets/user.yml.j2
+    dest: /root/snippets/cloudinit/snippets/user.yml
+    backup: true
+
+- name: Copy /root/snippets/cloudinit/snippets/network.yml
+  template:
+    src: ../src/pve/root/snippets/cloudinit/snippets/network.yml.j2
+    dest: /root/snippets/cloudinit/snippets/network.yml
+    backup: true

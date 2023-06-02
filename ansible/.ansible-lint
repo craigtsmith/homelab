@@ -1,0 +1,29 @@
+skip_list:
+  - fqcn[action-core]
+  - fqcn[action]
+  - run_once[task]
+  - risky-file-permissions
+  - command-instead-of-shell
+  - empty-string
+  - trailing-whitespace
+  - repeated-task
+  - meta-tag-syntax
+  - git-latest
+  - no-changed-when
+  - no-debugger
+  - no-new-privilege-escalation
+  - no-relative-paths
+  - no-tabs
+  - path-does-not-exist
+  - trailing-comma
+  - env-variable-with-uppercase
+  - yaml-syntax
+  - no-commented-out-code
+  - command-line-spacing
+  - no-trailing-whitespace
+
+warn_list:
+  - yaml[line-length]
+
+exclude_paths:
+  - src/

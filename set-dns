@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Ensure the script is called with the correct number of arguments
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <record> <ip>"
+    exit 1
+fi
+
+# Extract arguments
+record=$1
+ip=$2
+
+# Define constants for your environment
+key="key.private"
+life="600"
+type="A"
+
+# Call the nsupdate-client script
+./nsupdate-client/nsupdate-client -k $key -r $record -l $life -t $type -d $ip

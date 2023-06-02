@@ -1,0 +1,70 @@
+- name: Initialize Docker Swarm on manager nodes
+  vars_files: [lib/vars.yml]
+  hosts: docker_vms
+  remote_user: serveradmin
+  become: true
+  tasks:
+    - name: Abort if no limit is set
+      fail:
+        msg: "This playbook must be run with a limit. Please use --limit."
+      when: ansible_limit == 'all'
+
+    - name: Check if Swarm is already initialized
+      shell: docker info --format "{{ '{{ .Swarm.LocalNodeState }}' }}"
+      register: swarm_info
+      changed_when: false
+      failed_when: false
+
+    - name: Set facts
+      set_fact:
+        swarm_not_active: "{{ swarm_info.stdout != 'active' }}"
+        is_manager: "{{ hostvars[inventory_hostname]['kind'] == 'manager' }}"
+
+    - name: Initialize Docker Swarm
+      command: docker swarm init --advertise-addr {{ inventory_hostname }}
+      register: swarm_init_output
+      when: swarm_not_active and is_manager
+
+    - name: Retrieve Docker Swarm join token
+      command: docker swarm join-token -q worker
+      register: join_token_output
+      when: swarm_not_active and is_manager
+
+    - name: Set fact for Docker Swarm join token
+      set_fact:
+        join_token: "{{ join_token_output.stdout_lines[0] }}"
+      when: swarm_not_active and is_manager
+      run_once: true
+
+- name: Join Docker Swarm on worker nodes
+  vars_files: [lib/vars.yml]
+  hosts: docker_vms
+  remote_user: serveradmin
+  become: true
+  tasks:
+    - name: Abort if no limit is set
+      fail:
+        msg: "This playbook must be run with a limit. Please use --limit."
+      when: ansible_limit == 'all'
+
+    - name: Check if already joined to Swarm
+      shell: docker info --format "{{ '{{ .Swarm.LocalNodeState }}' }}"
+      register: swarm_node_info
+      changed_when: false
+      failed_when: false
+
+    - name: Set facts
+      set_fact:
+        node_not_joined: "{{ swarm_node_info.stdout != 'active' }}"
+        is_worker: "{{ hostvars[inventory_hostname]['kind'] == 'worker' }}"
+
+    - name: Find manager
+      set_fact:
+        manager_host: "{{ item }}"
+      when: hostvars[item]['kind'] == 'manager'
+      with_items: "{{ ansible_play_batch }}"
+      run_once: true
+
+    - name: Join Docker Swarm
+      command: docker swarm join --token {{ hostvars[manager_host]['join_token'] }} {{ manager_host }}:2377
+      when: node_not_joined and is_worker

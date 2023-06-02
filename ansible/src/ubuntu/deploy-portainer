@@ -1,0 +1,3 @@
+#!/bin/bash
+source .env
+sudo -E bash -c 'docker stack deploy -c portainer-traefik-stack.yml portainer'

@@ -1,0 +1,4 @@
+key "my-dns-server" {
+algorithm HMAC-SHA512;
+secret "secret";
+};

@@ -1,0 +1,18 @@
+[pve]
+192.168.100.10
+192.168.100.20
+192.168.100.30
+
+[production]
+192.168.100.100 kind=manager
+192.168.100.101 kind=worker
+192.168.100.102 kind=worker
+
+[staging]
+192.168.100.103 kind=manager
+192.168.100.104 kind=worker
+192.168.100.105 kind=worker
+
+[docker_vms:children]
+production
+staging

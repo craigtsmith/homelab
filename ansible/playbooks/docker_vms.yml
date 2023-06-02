@@ -1,0 +1,76 @@
+- name: Setup Docker VMs
+  vars_files: [lib/vars.yml]
+  hosts: docker_vms
+  remote_user: serveradmin
+  become: true
+  tasks:
+    - name: Add SSH Key
+      import_tasks: ../tasks/authorized-key.yml
+
+    - name: Apt Update
+      import_tasks: ../tasks/apt.yml
+
+    - name: Install iftpo
+      import_tasks: ../tasks/iftop.yml
+
+    - name: Set Timezone
+      import_tasks: ../tasks/timezone.yml
+
+    - name: Install Guest Agent
+      import_tasks: ../tasks/qemu-guest-agent.yml
+
+    - name: Install Docker
+      import_tasks: ../tasks/docker.yml
+
+    - name: Copy cloud.cfg
+      copy:
+        src: ../src/ubuntu/etc/cloud/cloud.cfg
+        dest: /etc/cloud/cloud.cfg
+        backup: true
+
+    - name: Update hostname
+      hostname:
+        name: "{{ docker_vms[inventory_hostname]['hostname'] }}"
+
+    - name: Install nfs-common
+      apt:
+        name: nfs-common
+        state: present
+        update_cache: true
+
+    - name: Mount Docker NFS volume
+      ansible.posix.mount:
+        src: "{{ nas_host }}:{{ nas_docker_path }}"
+        path: "{{ nas_docker_mount_point }}"
+        opts: rw,sync,hard
+        state: mounted
+        fstype: nfs
+
+    - name: Set environment variables for docker stack
+      block:
+        - name: Create .env file
+          template:
+            src: lib/docker_env.j2
+            dest: ".env"
+
+        - name: Ensure .env file has correct permissions
+          file:
+            path: ".env"
+            mode: "0444"
+
+    - name: Copy portainer-traefik-stack.yml
+      template:
+        src: ../src/ubuntu/portainer-traefik-stack.yml.j2
+        dest: portainer-traefik-stack.yml
+        backup: true
+
+    - name: Copy and make deploy-portainer executable
+      copy:
+        src: ../src/ubuntu/deploy-portainer
+        dest: deploy-portainer
+        backup: true
+        mode: "0755"
+
+  handlers:
+    - name: Reboot server
+      reboot:

@@ -1,0 +1,5 @@
+- name: Update /etc/pve/storage.cfg
+  template:
+    src: ../src/pve/etc/pve/storage.cfg.j2
+    dest: /etc/pve/storage.cfg
+    backup: true

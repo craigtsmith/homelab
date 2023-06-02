@@ -1,0 +1,15 @@
+# Define each of your Docker nodes here
+
+docker_vms:
+  192.168.100.100:
+    hostname: docker1.example.com
+  192.168.100.101:
+    hostname: docker2.example.com
+  192.168.100.102:
+    hostname: docker3.example.com
+  192.168.100.103:
+    hostname: docker1.staging.example.com
+  192.168.100.104:
+    hostname: docker2.staging.example.com
+  192.168.100.105:
+    hostname: docker3.staging.example.com
