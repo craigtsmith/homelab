@@ -1,0 +1,8 @@
+# Run these commands on the manager node
+sudo docker stack rm portainer
+sudo docker volume rm portainer_portainer_data
+sudo docker volume rm portainer_traefik-public-certificates
+sudo docker system prune -f
+
+# Run these commands on the worker nodes
+sudo docker system prune -f
