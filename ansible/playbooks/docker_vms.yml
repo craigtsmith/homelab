@@ -4,6 +4,15 @@
   remote_user: serveradmin
   become: true
   tasks:
+    - name: Abort if no limit is set
+      fail:
+        msg: "This playbook must be run with a limit. Please use --limit."
+      when: ansible_limit == 'all'
+
+    - name: Set dynamic base_domain
+      set_fact:
+        base_domain: "{{ x_domain }}"
+
     - name: Add SSH Key
       import_tasks: ../tasks/authorized-key.yml
 
