@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Check Play
+# ansible-playbook ./ansible/playbooks/docker_swarm.yml --check --diff --limit staging
+# ansible-playbook ./ansible/playbooks/docker_swarm.yml --check --diff --limit production
+
+# Run Play
+ansible-playbook ./ansible/playbooks/docker_swarm.yml --limit staging
+# ansible-playbook ./ansible/playbooks/docker_swarm.yml --limit production

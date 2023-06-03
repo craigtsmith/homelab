@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Check Play
+# ansible-playbook ./ansible/playbooks/docker_vms.yml --check --diff --limit staging --extra-vars "x_domain=$STAGING_DOMAIN"
+# ansible-playbook ./ansible/playbooks/docker_vms.yml --check --diff --limit production --extra-vars "x_domain=$PRODUCTION_DOMAIN"
+
+# Run Play
+ansible-playbook ./ansible/playbooks/docker_vms.yml --limit staging --extra-vars "x_domain=$STAGING_DOMAIN"
+# ansible-playbook ./ansible/playbooks/docker_vms.yml --limit production --extra-vars "x_domain=$PRODUCTION_DOMAIN"
