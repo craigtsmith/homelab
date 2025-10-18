@@ -1,0 +1,96 @@
+---
+- name: Detect LAN interface
+  ansible.builtin.set_fact:
+    docker_lan_if: "{{ ansible_default_ipv4.interface }}"
+
+- name: Gather Docker network inventory
+  community.docker.docker_host_info:
+    networks: true
+  register: docker_host_networks
+  changed_when: false
+
+- name: Inspect Docker networks for subnets
+  community.docker.docker_network_info:
+    name: "{{ item.Name }}"
+  loop: "{{ docker_host_networks.networks | default([]) }}"
+  loop_control:
+    label: "{{ item.Name | default(item.Id) }}"
+  register: docker_network_details
+  changed_when: false
+  when: docker_host_networks.networks is defined and (docker_host_networks.networks | length) > 0
+
+- name: Ensure docker network details list defined
+  ansible.builtin.set_fact:
+    docker_network_details_results: "{{ docker_network_details.results | default([]) }}"
+  when: docker_host_networks.networks is defined and (docker_host_networks.networks | length) > 0
+
+- name: Default docker network details when none detected
+  ansible.builtin.set_fact:
+    docker_network_details_results: []
+  when: docker_host_networks.networks is not defined or (docker_host_networks.networks | length) == 0
+
+- name: Build docker_bridge_cidrs from discovered subnets + any preset
+  ansible.builtin.set_fact:
+    docker_bridge_cidrs_candidates: >-
+      {{ (
+          docker_network_details_results
+          | default([])
+          | selectattr('network', 'defined')
+          | map(attribute='network')
+          | list
+          | json_query('[].IPAM.Config[].Subnet')
+          | default([])
+          | select('match','^\\d+\\.\\d+\\.\\d+\\.\\d+/\\d+$')
+          | list
+        )
+        | union(
+            (docker_host.networking.bridge.cidrs | default([]))
+            | map('trim') | list
+          )
+         | unique }}
+
+- name: Ensure docker_bridge_cidrs has sensible defaults if empty
+  ansible.builtin.set_fact:
+    docker_bridge_cidrs: >-
+      {{ docker_bridge_cidrs_candidates
+         if (docker_bridge_cidrs_candidates | default([]) | length) > 0
+         else docker_host.networking.bridge.default_cidrs }}
+
+- name: Ensure iptables persistence packages are installed
+  ansible.builtin.apt:
+    name:
+      - netfilter-persistent
+      - iptables-persistent
+    state: present
+    update_cache: true
+  become: true
+
+- name: SNAT Docker bridges → AdGuard (UDP 53)
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ item }}"
+    destination: "{{ docker_host.networking.dns_upstream }}"
+    protocol: udp
+    destination_port: "53"
+    out_interface: "{{ docker_lan_if }}"
+    jump: MASQUERADE
+    state: present
+  loop: "{{ docker_bridge_cidrs }}"
+  become: true
+  notify: Save iptables rules
+
+- name: SNAT Docker bridges → AdGuard (TCP 53)
+  ansible.builtin.iptables:
+    table: nat
+    chain: POSTROUTING
+    source: "{{ item }}"
+    destination: "{{ docker_host.networking.dns_upstream }}"
+    protocol: tcp
+    destination_port: "53"
+    out_interface: "{{ docker_lan_if }}"
+    jump: MASQUERADE
+    state: present
+  loop: "{{ docker_bridge_cidrs }}"
+  become: true
+  notify: Save iptables rules

@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure NIC multiqueue settings
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -L {{ ubuntu_vm_multiqueue_iface_resolved }} combined {{ ubuntu_vm_multiqueue_target }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

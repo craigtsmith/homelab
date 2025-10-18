@@ -1,0 +1,11 @@
+---
+- name: Apply shared Docker host configuration
+  ansible.builtin.import_tasks: common.yml
+
+- name: Apply manager-specific configuration
+  when: docker_host.role == 'manager'
+  ansible.builtin.import_tasks: manager.yml
+
+- name: Apply worker-specific configuration
+  when: docker_host.role == 'worker'
+  ansible.builtin.import_tasks: worker.yml

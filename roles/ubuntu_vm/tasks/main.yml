@@ -1,0 +1,47 @@
+---
+- name: Ensure PostgreSQL repository is configured
+  ansible.builtin.import_tasks: fix-postgres-repo.yml
+  when: ubuntu_vm.manage_postgres_repo | bool
+
+- name: Upgrade base system packages
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: "{{ ubuntu_vm.packages.upgrade }}"
+
+- name: Install diagnostic tooling
+  become: true
+  ansible.builtin.apt:
+    name: "{{ ubuntu_vm.packages.base }}"
+    state: present
+  when: ubuntu_vm.packages.base | length > 0
+
+- name: Ensure qemu-guest-agent is installed
+  become: true
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+  notify: reboot vm
+
+- name: Set timezone
+  become: true
+  community.general.timezone:
+    name: "{{ tz }}"
+
+- name: Copy cloud.cfg
+  become: true
+  ansible.builtin.copy:
+    src: cloud.cfg
+    dest: /etc/cloud/cloud.cfg
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Update hostname
+  become: true
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+
+- name: Configure DNS override
+  ansible.builtin.import_tasks: dns.yml

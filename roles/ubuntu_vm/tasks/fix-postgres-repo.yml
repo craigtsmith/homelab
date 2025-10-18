@@ -1,0 +1,29 @@
+---
+- name: Remove old PGDG list (http)
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/pgdg.list
+    state: absent
+
+- name: Ensure repo prereqs
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+    state: present
+    update_cache: true
+
+# focal → use the archive host
+- name: Add PGDG archive repo for focal
+  ansible.builtin.deb822_repository:
+    name: pgdg
+    types: ["deb"]
+    uris: ["https://apt-archive.postgresql.org/pub/repos/apt"]
+    suites: ["focal-pgdg"]
+    components: ["main"]
+    signed_by: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: Apt update
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 0

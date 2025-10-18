@@ -1,0 +1,17 @@
+---
+- name: Validate environment for utility servers
+  import_playbook: common/validate_env.yml
+  vars:
+    required_env_vars:
+      - CLOUDFLARE_TOKEN
+
+- name: Util Servers
+  hosts: util_servers
+  remote_user: serveradmin
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Util role
+      ansible.builtin.include_role:
+        name: util_server
+        tasks_from: main

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+target=/var/backups/mysql
+mkdir -p $target
+rm -f $target/*.sql.gz
+
+databases=$(mysql -Be 'show databases' | egrep -v 'Database|information_schema|performance_schema|sys')
+
+for db in $databases; do
+    mysqldump --force $db | gzip >$target/$db.sql.gz
+done

@@ -1,0 +1,5 @@
+---
+db_user:
+  name: "db1"
+  mysql_password: "{{ lookup('env', 'MYSQL_PASSWORD') }}"
+  postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') }}"

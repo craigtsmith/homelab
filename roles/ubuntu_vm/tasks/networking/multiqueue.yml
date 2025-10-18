@@ -1,0 +1,30 @@
+---
+- name: Determine iface and desired queues
+  ansible.builtin.set_fact:
+    ubuntu_vm_multiqueue_iface_resolved: "{{ ubuntu_vm.multiqueue.iface | default(ansible_default_ipv4.interface) }}"
+    ubuntu_vm_multiqueue_target: "{{ [ansible_processor_vcpus | default(ansible_processor_count | default(2)), ubuntu_vm.multiqueue.max_queues] | min }}"
+  when: ubuntu_vm.multiqueue.manage | bool
+
+- name: Ensure ethtool installed
+  ansible.builtin.package:
+    name: ethtool
+    state: present
+  when: ubuntu_vm.multiqueue.manage | bool
+  become: true
+
+- name: Persist multiqueue settings via systemd unit
+  ansible.builtin.template:
+    src: ethtool-multiqueue.service.j2
+    dest: "/etc/systemd/system/{{ ubuntu_vm.multiqueue.service }}"
+    mode: "0644"
+  when: ubuntu_vm.multiqueue.manage | bool
+  become: true
+  notify: Reload systemd daemon
+
+- name: Ensure multiqueue service enabled and applied
+  ansible.builtin.systemd:
+    name: "{{ ubuntu_vm.multiqueue.service }}"
+    enabled: true
+    state: restarted
+  when: ubuntu_vm.multiqueue.manage | bool
+  become: true

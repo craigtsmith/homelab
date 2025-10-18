@@ -1,0 +1,24 @@
+---
+- name: Generate portainer-stack.yml
+  ansible.builtin.template:
+    src: portainer-stack.yml.j2
+    dest: portainer-agent-traefik-stack.yml
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy deploy-portainer script
+  ansible.builtin.copy:
+    src: deploy-portainer
+    dest: deploy-portainer
+    backup: true
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Deploy portainer stack
+  community.general.docker_stack:
+    state: present
+    name: portainer-traefik
+    compose:
+      - portainer-agent-traefik-stack.yml

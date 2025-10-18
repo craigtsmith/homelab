@@ -1,0 +1,12 @@
+#cloud-config
+hostname: ubuntu-cloud
+manage_etc_hosts: true
+user: serveradmin
+password: {{ vm_user_pass }}
+ssh_authorized_keys:
+  - {{ ssh_public_key }}
+chpasswd:
+  expire: False
+users:
+  - default
+package_upgrade: true

@@ -1,0 +1,42 @@
+---
+- name: Install dependencies
+  become: true
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: true
+
+- name: Add GPG key
+  become: true
+  ansible.builtin.apt_key:
+    url: "{{ docker_host.repo.url }}/gpg"
+    state: present
+
+- name: Add docker repository to apt
+  become: true
+  ansible.builtin.apt_repository:
+    filename: docker
+    repo: >-
+      deb [arch={{ docker_host.repo.arch }}]
+      {{ docker_host.repo.url }}
+      {{ docker_host.repo.codename }}
+      {{ docker_host.repo.channel }}
+    state: present
+
+- name: Install Docker Engine and CLI with downgrades allowed
+  become: true
+  ansible.builtin.apt:
+    name: "{{ docker_host.engine.packages | map('regex_replace', '$', '=' + docker_host.engine.version) | list }}"
+    state: present
+    allow_downgrades: true
+
+- name: Hold Docker Engine and CLI packages at their current versions
+  become: true
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ docker_host.engine.hold_packages }}"

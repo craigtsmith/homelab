@@ -1,0 +1,11 @@
+---
+- name: Common setup
+  ansible.builtin.import_tasks: ./setup.yml
+- name: PostgreSQL
+  ansible.builtin.import_tasks: ./postgresql.yml
+- name: PgBouncer
+  ansible.builtin.import_tasks: ./pgbouncer.yml
+- name: MySQL
+  ansible.builtin.import_tasks: ./mysql.yml
+- name: Redis
+  ansible.builtin.import_tasks: ./redis.yml

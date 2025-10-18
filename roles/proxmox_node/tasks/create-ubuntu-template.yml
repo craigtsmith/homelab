@@ -1,0 +1,111 @@
+---
+- name: Download cloud image
+  become: true
+  ansible.builtin.get_url:
+    url: "{{ cloud_image_url }}"
+    dest: "{{ proxmox_node.template.image_path }}"
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Resize image
+  become: true
+  ansible.builtin.command:
+    argv:
+      - qemu-img
+      - resize
+      - "{{ proxmox_node.template.image_path }}"
+      - "+20G"
+  register: resize_image
+  changed_when: resize_image.rc == 0
+
+- name: Install libguestfs-tools
+  become: true
+  ansible.builtin.apt:
+    name: libguestfs-tools
+    state: present
+    update_cache: true
+
+- name: Install guest agent in image
+  become: true
+  ansible.builtin.command:
+    argv:
+      - virt-customize
+      - -a
+      - "{{ proxmox_node.template.image_path }}"
+      - --install
+      - qemu-guest-agent
+  register: install_guest_agent
+  changed_when: install_guest_agent.rc == 0
+
+- name: Define Proxmox API connection for template management
+  ansible.builtin.set_fact:
+    proxmox_api_connection:
+      api_host: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+      api_user: "{{ proxmox_api.user }}"
+      api_token_id: "{{ proxmox_api.token.id }}"
+      api_token_secret: "{{ proxmox_api.token.secret | default(proxmox_api_token_secret) }}"
+      validate_certs: false
+      node_name: "{{ hostvars[inventory_hostname].hostname | default(inventory_hostname) }}"
+  changed_when: false
+  no_log: true
+
+- name: Ensure Proxmox API credentials are available
+  ansible.builtin.assert:
+    that:
+      - proxmox_api_connection.api_user is defined
+      - proxmox_api_connection.api_token_id is defined
+      - proxmox_api_connection.api_token_secret | default('') | length > 0
+    fail_msg: "Proxmox API token not available; ensure proxmox_api_token role has executed."
+
+- name: Ensure template VM definition exists
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_connection.api_host }}"
+    api_user: "{{ proxmox_api_connection.api_user }}"
+    api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+    api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+    validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+    node: "{{ proxmox_api_connection.node_name }}"
+    vmid: "{{ proxmox_nodes[inventory_hostname]['ubuntu-template-id'] }}"
+    name: "{{ proxmox_node.template.name }}"
+    memory: "{{ proxmox_node.template.memory_mb }}"
+    cores: "{{ proxmox_node.template.cpu_cores }}"
+    scsihw: "{{ proxmox_node.template.scsihw }}"
+    net:
+      net0: "{{ proxmox_node.template.net_model }},bridge={{ proxmox_node.template.bridge }}"
+    ide:
+      ide2: "{{ proxmox_node.template.cloudinit_storage }}:cloudinit,format=qcow2"
+    cicustom: "{{ proxmox_node.template.cicustom | default(omit) }}"
+    boot: "{{ proxmox_node.template.boot }}"
+    bootdisk: "{{ proxmox_node.template.bootdisk }}"
+    serial: "{{ {'serial0': proxmox_node.template.serial} if proxmox_node.template.serial is not none else omit }}"
+    vga: "{{ proxmox_node.template.vga | default(omit) }}"
+    agent: "{{ 'enabled=1' if proxmox_node.template.enable_agent | bool else 'enabled=0' }}"
+    update: true
+    state: present
+
+- name: Import template disk image
+  community.proxmox.proxmox_disk:
+    api_host: "{{ proxmox_api_connection.api_host }}"
+    api_user: "{{ proxmox_api_connection.api_user }}"
+    api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+    api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+    validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+    vmid: "{{ proxmox_nodes[inventory_hostname]['ubuntu-template-id'] }}"
+    disk: "{{ proxmox_node.template.disk_interface }}"
+    storage: "{{ proxmox_node.template.storage }}"
+    import_from: "{{ proxmox_node.template.image_path }}"
+    format: "{{ proxmox_node.template.disk_format }}"
+    timeout: 1200
+
+- name: Convert VM into reusable template
+  community.proxmox.proxmox_kvm:
+    api_host: "{{ proxmox_api_connection.api_host }}"
+    api_user: "{{ proxmox_api_connection.api_user }}"
+    api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+    api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+    validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+    node: "{{ proxmox_api_connection.node_name }}"
+    vmid: "{{ proxmox_nodes[inventory_hostname]['ubuntu-template-id'] }}"
+    state: template
+  when: proxmox_node.template.make | bool

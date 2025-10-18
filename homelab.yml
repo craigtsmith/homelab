@@ -1,0 +1,45 @@
+---
+all:
+  children:
+    proxmox_nodes:
+      hosts:
+        pve1:
+          ansible_host: 192.168.100.10
+          hostname: pve1
+        pve2:
+          ansible_host: 192.168.100.20
+          hostname: pve2
+        pve3:
+          ansible_host: 192.168.100.30
+          hostname: pve3
+    ubuntu_vms:
+      children:
+        docker_hosts:
+          hosts:
+            docker1:
+              ansible_host: 192.168.100.11
+              hostname: docker1
+              vm_name: docker1
+              kind: manager
+            docker2:
+              ansible_host: 192.168.100.21
+              hostname: docker2
+              vm_name: docker2
+              kind: worker
+            docker3:
+              ansible_host: 192.168.100.31
+              hostname: docker3
+              vm_name: docker3
+              kind: worker
+        db_servers:
+          hosts:
+            db1:
+              ansible_host: 192.168.100.22
+              hostname: db1
+              vm_name: db1
+        util_servers:
+          hosts:
+            util1:
+              ansible_host: 192.168.100.12
+              hostname: util1
+              vm_name: util1

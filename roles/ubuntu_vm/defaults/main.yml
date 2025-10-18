@@ -1,0 +1,25 @@
+---
+ubuntu_vm:
+  manage_postgres_repo: true
+
+  packages:
+    upgrade: "yes"
+    base:
+      - iftop
+      - ncdu
+      - iperf3
+
+  multiqueue:
+    manage: true
+    max_queues: 8
+    iface:
+    service: ethtool-multiqueue.service
+
+  rps:
+    manage: true
+    iface:
+    max_cpus: 64
+    flow_cnt: 2048
+    sock_flow_entries: 32768
+    script_path: /usr/local/sbin/configure-rps.sh
+    service: rps-setup.service

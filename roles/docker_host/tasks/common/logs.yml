@@ -1,0 +1,9 @@
+---
+- name: Copy daemon.json to configure Docker daemon
+  become: true
+  ansible.builtin.copy:
+    src: "daemon.json"
+    dest: "/etc/docker/daemon.json"
+    mode: "0644"
+  notify:
+    - restart docker

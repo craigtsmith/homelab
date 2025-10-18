@@ -1,0 +1,31 @@
+---
+- name: Validate required environment variables
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    required_env_vars: []
+    global_required_env_vars:
+      - DNS_HOST
+      - DOMAIN
+    env_example_path: ".env.example"
+
+  tasks:
+    - name: Aggregate required environment variables
+      ansible.builtin.set_fact:
+        env_vars_to_validate: "{{ (global_required_env_vars + (required_env_vars | default([]))) | unique }}"
+      tags: ["always"]
+
+    - name: Ensure required environment variables are defined
+      ansible.builtin.assert:
+        that:
+          - (lookup('env', item) | length) > 0
+        fail_msg: >-
+          Environment variable {{ item }} is required. Set it in your shell
+          environment or populate {{ env_example_path }} and reload it before running Ansible.
+        success_msg: "Environment variable {{ item }} is set."
+      loop: "{{ env_vars_to_validate }}"
+      loop_control:
+        label: "{{ item }}"
+      when: env_vars_to_validate | length > 0
+      tags: ["always"]

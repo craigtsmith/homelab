@@ -1,0 +1,55 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install ceph-common package
+  ansible.builtin.apt:
+    name: ceph-common
+    state: present
+
+- name: Ensure /etc/ceph directory exists
+  ansible.builtin.file:
+    path: /etc/ceph
+    state: directory
+    mode: "0755"
+
+- name: Copy ceph.conf to remote system
+  ansible.builtin.copy:
+    src: ceph.conf
+    dest: /etc/ceph/ceph.conf
+    mode: "0644"
+
+- name: Copy admin.keyring to remote system
+  ansible.builtin.copy:
+    src: admin.keyring
+    dest: /etc/ceph/admin.keyring
+    mode: "0644"
+
+- name: Ensure CephFS mount point exists
+  ansible.builtin.file:
+    path: /mnt/cephfs
+    state: directory
+    mode: "0755"
+
+- name: Ensure CephFS is mounted
+  ansible.posix.mount:
+    path: /mnt/cephfs
+    src: 192.168.100.10:6789,192.168.100.20:6789,192.168.100.30:6789:/
+    fstype: ceph
+    opts: name=admin,secretfile=/etc/ceph/admin.keyring,_netdev
+    state: mounted
+  become: true
+
+- name: Add CephFS mount to /etc/fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: >-
+      192.168.100.10:6789,192.168.100.20:6789,192.168.100.30:6789:/ /mnt/cephfs
+      ceph name=admin,secretfile=/etc/ceph/admin.keyring,noauto,x-systemd.automount 0 2
+    create: true
+    state: present
+    owner: root
+    group: root
+    mode: "0644"

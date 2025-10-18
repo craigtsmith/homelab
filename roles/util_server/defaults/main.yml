@@ -1,0 +1,8 @@
+---
+util_server:
+  redis:
+    enable_ppa: true
+  packages:
+    - redis-tools
+    - mysql-client
+    - "postgresql-client-{{ postgres_version }}"

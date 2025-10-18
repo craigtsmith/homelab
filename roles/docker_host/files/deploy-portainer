@@ -1,0 +1,2 @@
+#!/bin/bash
+sudo -E bash -c 'docker stack deploy -c portainer-agent-traefik-stack.yml portainer-traefik'

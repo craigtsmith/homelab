@@ -1,0 +1,80 @@
+---
+- name: Install MySQL Python dependencies
+  ansible.builtin.pip:
+    name: "{{ db_server.mysql.pip_packages }}"
+    state: present
+  when: db_server.mysql.pip_packages | length > 0
+
+- name: Install MySQL Server
+  ansible.builtin.apt:
+    name: "{{ db_server.mysql.packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure MySQL service is running
+  ansible.builtin.service:
+    name: "{{ db_server.mysql.service }}"
+    state: started
+    enabled: true
+
+- name: Install MySQL client (if not already installed)
+  ansible.builtin.apt:
+    name: "{{ db_server.mysql.client_package }}"
+    state: present
+
+- name: Ensure MySQL administrative user exists
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: "{{ db_user['name'] }}"
+    password: "{{ db_user['mysql_password'] }}"
+    host: "%"
+    priv: "*.*:ALL,GRANT"
+    state: present
+    update_password: always
+
+- name: Remove anonymous users
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: ""
+    host_all: true
+    state: absent
+
+- name: Disallow root login remotely
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: root
+    host: "%"
+    state: absent
+
+- name: Remove test database
+  community.mysql.mysql_db:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: test
+    state: absent
+
+- name: Reload privilege tables
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    append_privs: true
+    priv: "*.*:RELOAD"
+    name: root
+    host: localhost
+
+- name: Copy mysql backup script
+  ansible.builtin.copy:
+    src: backup-mysql
+    dest: /usr/local/bin/backup-mysql
+    backup: true
+    mode: "0755"
+
+- name: Setup cron job for mysql backup script
+  ansible.builtin.cron:
+    name: "Backup MySQL"
+    minute: "{{ db_server.mysql.backup_schedule.minute }}"
+    hour: "{{ db_server.mysql.backup_schedule.hour }}"
+    job: "/usr/local/bin/backup-mysql"

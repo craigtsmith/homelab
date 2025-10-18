@@ -1,0 +1,9 @@
+---
+- name: Reboot VM
+  ansible.builtin.reboot:
+    msg: "Reboot triggered by ubuntu_vm role"
+  listen: reboot vm
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true

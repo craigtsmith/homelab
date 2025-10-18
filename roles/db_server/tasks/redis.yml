@@ -1,0 +1,26 @@
+---
+- name: Add the Redis PPA repository
+  ansible.builtin.apt_repository:
+    repo: ppa:redislabs/redis
+    state: present
+
+- name: Install Redis Server
+  ansible.builtin.apt:
+    name: redis-server
+    state: present
+    update_cache: true
+
+- name: Ensure Redis Server is enabled and started
+  ansible.builtin.systemd:
+    name: redis-server.service
+    enabled: true
+    state: started
+
+- name: Copy /etc/redis/redis.conf
+  ansible.builtin.copy:
+    src: redis.conf
+    dest: /etc/redis/redis.conf
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"

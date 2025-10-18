@@ -1,0 +1,43 @@
+name: Ansible Syntax Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    env:
+      ANSIBLE_LOCAL_TEMP: .ansible/tmp
+    strategy:
+      matrix:
+        playbook:
+          - playbooks/proxmox_nodes.yml
+          - playbooks/ubuntu_vms.yml
+          - playbooks/db_servers.yml
+          - playbooks/util_servers.yml
+          - playbooks/docker_hosts.yml
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ansible tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-dev-tools
+
+      - name: Install required collections
+        run: ansible-galaxy collection install -r collections/requirements.yml
+
+      - name: Prepare ansible temp directory
+        run: mkdir -p .ansible/tmp
+
+      - name: Syntax check ${{ matrix.playbook }}
+        run: ansible-playbook --syntax-check ${{ matrix.playbook }}

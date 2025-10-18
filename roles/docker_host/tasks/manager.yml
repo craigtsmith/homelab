@@ -1,0 +1,24 @@
+---
+- name: Initialize Docker Swarm
+  community.docker.docker_swarm:
+    state: present
+    advertise_addr: "{{ ansible_default_ipv4.address }}"
+  when: not ansible_check_mode
+
+- name: Retrieve Docker Swarm details
+  community.docker.docker_swarm_info:
+  register: docker_swarm_info
+  changed_when: false
+
+- name: Broadcast Docker Swarm join token to cluster hosts
+  ansible.builtin.set_fact:
+    swarm_node_info:
+      join_token: "{{ docker_swarm_info.swarm_facts.JoinTokens.Worker }}"
+      manager_ip: "{{ ansible_default_ipv4.address }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['docker_hosts'] | default([]) }}"
+  when: docker_swarm_info.swarm_facts is defined
+
+- name: Portainer
+  ansible.builtin.import_tasks: manager/portainer.yml

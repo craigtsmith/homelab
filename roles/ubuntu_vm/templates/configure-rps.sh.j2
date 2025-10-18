@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+IFACE="{{ ubuntu_vm_rps_iface_resolved }}"
+MASK="{{ ubuntu_vm_rps_mask }}"
+FLOW_CNT="{{ ubuntu_vm.rps.flow_cnt }}"
+SOCK_FLOW="{{ ubuntu_vm.rps.sock_flow_entries }}"
+
+apply_value() {
+  target="$1"
+  desired="$2"
+  if [ -f "$target" ]; then
+    current="$(cat "$target" 2>/dev/null || true)"
+    if [ "$current" != "$desired" ]; then
+      printf '%s' "$desired" > "$target"
+    fi
+  fi
+}
+
+for cpu_file in /sys/class/net/"$IFACE"/queues/rx-*/rps_cpus; do
+  [ -f "$cpu_file" ] && apply_value "$cpu_file" "$MASK"
+done
+
+for flow_file in /sys/class/net/"$IFACE"/queues/rx-*/rps_flow_cnt; do
+  [ -f "$flow_file" ] && apply_value "$flow_file" "$FLOW_CNT"
+done
+
+if command -v sysctl >/dev/null 2>&1; then
+  current="$(sysctl -n net.core.rps_sock_flow_entries 2>/dev/null || true)"
+  if [ "$current" != "$SOCK_FLOW" ]; then
+    sysctl -w "net.core.rps_sock_flow_entries=$SOCK_FLOW"
+  fi
+fi

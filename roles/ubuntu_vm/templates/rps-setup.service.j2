@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure Receive Packet Steering
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ ubuntu_vm.rps.script_path }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

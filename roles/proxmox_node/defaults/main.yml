@@ -1,0 +1,21 @@
+---
+proxmox_node:
+  template:
+    name: template-ubuntu-cloud
+    memory_mb: 4000
+    cpu_cores: 4
+    bridge: vmbr0
+    net_model: virtio
+    storage: local-lvm
+    disk_format: qcow2
+    disk_interface: scsi0
+    scsihw: virtio-scsi-pci
+    cloudinit_storage: local-lvm
+    cicustom: "user=cloudinit:snippets/user.yml"
+    boot: "order=scsi0"
+    bootdisk: scsi0
+    serial: socket
+    vga: serial0
+    enable_agent: true
+    image_path: /root/cloudimage.img
+    make: true

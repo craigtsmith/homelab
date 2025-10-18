@@ -1,0 +1,63 @@
+---
+- name: Install PostgreSQL Python dependencies
+  ansible.builtin.pip:
+    name: "{{ db_server.postgres.pip_packages }}"
+    state: present
+  when: db_server.postgres.pip_packages | length > 0
+
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name: "{{ db_server.postgres.packages }}"
+    state: present
+
+- name: Ensure PostgreSQL service is running
+  ansible.builtin.service:
+    name: "{{ db_server.postgres.service }}"
+    state: started
+    enabled: true
+
+- name: Ensure application PostgreSQL role exists with admin privileges
+  community.postgresql.postgresql_user:
+    name: "{{ db_user['name'] }}"
+    password: "{{ db_user['postgres_password'] }}"
+    encrypted: false
+    role_attr_flags: "LOGIN,SUPERUSER,CREATEDB"
+    state: present
+    login_unix_socket: /var/run/postgresql
+  become: true
+  become_user: postgres
+
+- name: Allow remote access to the PostgreSQL server
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/{{ db_server.postgres.version }}/main/pg_hba.conf
+    regexp: "^host\\s+all\\s+all\\s+0.0.0.0/0\\s+md5"
+    line: "host    all             all             0.0.0.0/0               md5"
+    state: present
+  notify: restart postgresql
+
+- name: Revoke default public access to public schema
+  community.postgresql.postgresql_privs:
+    db: "{{ postgres_default_db | default('postgres') }}"
+    type: schema
+    objs: public
+    roles: PUBLIC
+    privs: ALL
+    state: absent
+    login_unix_socket: /var/run/postgresql
+  become: true
+  become_user: postgres
+
+- name: Copy postgres backup script
+  ansible.builtin.copy:
+    src: backup-postgresql
+    dest: /usr/local/bin/backup-postgresql
+    backup: true
+    mode: "0755"
+
+- name: Setup cron job for postgres backup script
+  ansible.builtin.cron:
+    name: "Backup PostgreSQL"
+    minute: "{{ db_server.postgres.backup_schedule.minute }}"
+    hour: "{{ db_server.postgres.backup_schedule.hour }}"
+    user: "{{ db_user['name'] }}"
+    job: "/usr/local/bin/backup-postgresql"

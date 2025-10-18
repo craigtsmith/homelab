@@ -1,0 +1,10 @@
+.ansible/
+.claude/
+.codex/
+.beads/
+
+*.retry
+
+**/private/**
+**/_private/**
+.env

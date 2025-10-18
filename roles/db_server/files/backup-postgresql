@@ -1,0 +1,13 @@
+#!/bin/bash
+
+target=/var/lib/postgresql/backups
+mkdir -p $target
+rm -f $target/*.gz
+
+databases=$(psql -q -A -t -c 'SELECT datname FROM pg_database' | egrep -v 'template0|template1')
+
+for db in $databases; do
+    pg_dump $db | gzip >$target/$db.gz
+done
+
+pg_dumpall --roles-only | gzip >$target/roles.gz

@@ -1,0 +1,36 @@
+---
+- name: Validate environment for Proxmox nodes
+  import_playbook: common/validate_env.yml
+
+- name: Proxmox Nodes
+  hosts: proxmox_nodes
+  remote_user: root
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Configure Proxmox host
+      block:
+        - name: Acquire temporary Proxmox API token
+          ansible.builtin.include_role:
+            name: proxmox_api_token
+          tags: proxmox_api_token
+
+        - name: Disable EEE / optional NIC tweaks
+          ansible.builtin.import_role:
+            name: proxmox_node
+            tasks_from: disable_eee.yml
+
+        - name: Proxmox node role
+          ansible.builtin.include_role:
+            name: proxmox_node
+            tasks_from: main
+
+      always:
+        - name: Revoke temporary Proxmox API token
+          ansible.builtin.command: pveum user token delete {{ proxmox_api.user }} {{ proxmox_api.token.id }}
+          register: proxmox_api_token_delete_post
+          failed_when: proxmox_api_token_delete_post.rc not in [0, 255]
+          changed_when: proxmox_api_token_delete_post.rc == 0
+          when: proxmox_api_token_created | default(false)
+          no_log: true

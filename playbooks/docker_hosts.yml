@@ -1,0 +1,12 @@
+---
+- name: Validate environment for Docker hosts
+  import_playbook: common/validate_env.yml
+
+- name: Configure Docker hosts
+  hosts: docker_hosts
+  remote_user: serveradmin
+  become: true
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: docker_host

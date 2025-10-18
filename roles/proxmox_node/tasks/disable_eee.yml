@@ -1,0 +1,194 @@
+---
+- name: Ensure ethtool present
+  ansible.builtin.package:
+    name: ethtool
+    state: present
+
+- name: Candidate ethtool locations
+  ansible.builtin.set_fact:
+    ethtool_candidate_paths:
+      - /usr/sbin/ethtool
+      - /sbin/ethtool
+      - /usr/bin/ethtool
+
+- name: Locate ethtool binary path
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: ethtool_path_stats
+  loop: "{{ ethtool_candidate_paths }}"
+  changed_when: false
+
+- name: Set ethtool path
+  ansible.builtin.set_fact:
+    ethtool_path: "{{ (ethtool_path_stats.results | selectattr('stat.exists') | map(attribute='item') | first) | default('/usr/sbin/ethtool') }}"
+
+- name: Determine effective NIC name for this host
+  ansible.builtin.set_fact:
+    nic: "{{ proxmox_nodes[inventory_hostname]['nic'] }}"
+
+- name: Derive ethtool systemd service name
+  ansible.builtin.set_fact:
+    ethtool_service_name: "ethtool-{{ nic }}"
+
+- name: Normalize NIC tweak inputs
+  ansible.builtin.set_fact:
+    do_offloads: true
+    do_rings: true
+    rx_ring_eff: 4096
+    tx_ring_eff: 4096
+
+- name: Create systemd unit to apply NIC tweaks at boot
+  ansible.builtin.copy:
+    dest: "/etc/systemd/system/ethtool-{{ nic }}.service"
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Apply ethtool settings for {{ nic }}
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      # Always try to disable EEE; ignore if unsupported
+      ExecStart={{ ethtool_path }} --set-eee {{ nic }} eee off
+      {% if do_offloads %}
+      ExecStart={{ ethtool_path }} -K {{ nic }} gro off gso off tso off
+      {% endif %}
+      {% if do_rings %}
+      ExecStart={{ ethtool_path }} -G {{ nic }} rx {{ rx_ring_eff }} tx {{ tx_ring_eff }}
+      {% endif %}
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Daemon-reload
+    - Enable-ethtool-service
+    - Start-ethtool-service
+
+- name: Apply EEE off immediately (ignore if NIC/driver lacks EEE)
+  ansible.builtin.systemd:
+    name: "{{ ethtool_service_name }}.service"
+    state: restarted
+    daemon_reload: true
+  changed_when: false
+
+- name: Collect Ubuntu VM names for virtual NIC tuning
+  ansible.builtin.set_fact:
+    ubuntu_vm_target_names: >-
+      {{
+        groups['ubuntu_vms'] | default([])
+        | map('extract', hostvars, 'vm_name')
+        | select('defined')
+        | list
+      }}
+  changed_when: false
+
+- name: Prepare Proxmox API connection (EEE tuning)
+  ansible.builtin.set_fact:
+    proxmox_api_connection:
+      api_host: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+      api_user: "{{ proxmox_api.user }}"
+      api_token_id: "{{ proxmox_api.token.id }}"
+      api_token_secret: "{{ proxmox_api.token.secret | default(proxmox_api_token_secret) }}"
+      validate_certs: false
+      node_name: "{{ hostvars[inventory_hostname].hostname | default(inventory_hostname) }}"
+  changed_when: false
+  no_log: true
+
+- name: Ensure Proxmox API credentials available for EEE tuning
+  ansible.builtin.assert:
+    that:
+      - proxmox_api_connection.api_user is defined
+      - proxmox_api_connection.api_token_id is defined
+      - proxmox_api_connection.api_token_secret | default('') | length > 0
+    fail_msg: "Proxmox API token not available; ensure proxmox_api_token role has executed."
+
+- name: Disable EEE on managed VMs via Proxmox API
+  when: (ubuntu_vm_target_names | default([])) | length > 0
+  block:
+    - name: Gather VM configuration for local node
+      community.proxmox.proxmox_vm_info:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        node: "{{ proxmox_api_connection.node_name }}"
+        type: qemu
+        config: current
+      register: proxmox_vm_info_result
+
+    - name: Build lookup for targeted VMs on this node
+      ansible.builtin.set_fact:
+        proxmox_vm_targets: "{{ proxmox_vm_targets | default({}) | combine({item.name: item}) }}"
+      loop: "{{ proxmox_vm_info_result.proxmox_vms | default([]) }}"
+      when:
+        - item.name is defined
+        - item.name in ubuntu_vm_target_names
+      changed_when: false
+
+    - name: Stage desired net0 configuration with EEE disabled
+      ansible.builtin.set_fact:
+        proxmox_vm_eee_targets: >-
+          {{
+            proxmox_vm_eee_targets | default([])
+            + [ {
+                  'name': item.key,
+                  'vmid': item.value.vmid,
+                  'net0': net0_final
+                } ]
+          }}
+      loop: "{{ proxmox_vm_targets | default({}) | dict2items }}"
+      vars:
+        net0_current: "{{ item.value.config.net0 | default('') }}"
+        net0_stripped: >-
+          {{
+            net0_current
+            | regex_replace('(^|,)eee=[^,]+', '\\1')
+            | regex_replace(',,+', ',')
+            | regex_replace('^,', '')
+            | regex_replace(',$', '')
+          }}
+        net0_final: >-
+          {{
+            (net0_stripped | length > 0)
+            | ternary(net0_stripped ~ ',eee=off', 'eee=off')
+          }}
+      when:
+        - proxmox_vm_targets is defined
+        - item.value.config.net0 is defined
+      changed_when: false
+
+    - name: Apply EEE setting to VM NICs
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        vmid: "{{ item.vmid }}"
+        node: "{{ proxmox_api_connection.node_name }}"
+        net:
+          net0: "{{ item.net0 }}"
+        update: true
+        state: present
+      loop: "{{ proxmox_vm_eee_targets | default([]) }}"
+      loop_control:
+        label: "{{ item.name | default(item.vmid) }}"
+      register: proxmox_vm_eee_updates
+      when: (proxmox_vm_eee_targets | default([])) | length > 0
+
+    - name: Restart VMs updated for EEE changes
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        vmid: "{{ item.item.vmid }}"
+        node: "{{ proxmox_api_connection.node_name }}"
+        state: restarted
+      loop: "{{ proxmox_vm_eee_updates.results | default([]) | selectattr('changed', 'equalto', True) | list }}"
+      loop_control:
+        label: "{{ item.item.name | default(item.item.vmid) }}"

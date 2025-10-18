@@ -1,0 +1,15 @@
+network:
+  version: 1
+  config:
+    # Physical interfaces.
+    - type: physical
+      name: net0
+      subnets:
+        - type: dhcp4
+        - type: dhcp6
+    - type: nameserver
+      address:
+        - {{ dns_host }}
+        - 1.1.1.1
+      search:
+        - "local"

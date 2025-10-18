@@ -1,0 +1,45 @@
+---
+- name: Resolve RPS interface and CPU count
+  ansible.builtin.set_fact:
+    ubuntu_vm_rps_iface_resolved: "{{ ubuntu_vm.rps.iface | default(ansible_default_ipv4.interface) }}"
+    ubuntu_vm_rps_cpu_count: "{{ [ansible_processor_vcpus | default(ansible_processor_count | default(1)), ubuntu_vm.rps.max_cpus] | min }}"
+  when: ubuntu_vm.rps.manage | bool
+
+- name: Compute RPS CPU mask
+  ansible.builtin.set_fact:
+    ubuntu_vm_rps_mask: "{{ '%x' | format((2 ** (ubuntu_vm_rps_cpu_count | int)) - 1) }}"
+  when: ubuntu_vm.rps.manage | bool
+
+- name: Ensure RPS sysctl baseline
+  ansible.posix.sysctl:
+    name: net.core.rps_sock_flow_entries
+    value: "{{ ubuntu_vm.rps.sock_flow_entries }}"
+    state: present
+    reload: true
+  when: ubuntu_vm.rps.manage | bool
+  become: true
+
+- name: Install RPS configuration script
+  ansible.builtin.template:
+    src: configure-rps.sh.j2
+    dest: "{{ ubuntu_vm.rps.script_path }}"
+    mode: "0755"
+  when: ubuntu_vm.rps.manage | bool
+  become: true
+
+- name: Install RPS systemd unit
+  ansible.builtin.template:
+    src: rps-setup.service.j2
+    dest: "/etc/systemd/system/{{ ubuntu_vm.rps.service }}"
+    mode: "0644"
+  when: ubuntu_vm.rps.manage | bool
+  become: true
+  notify: Reload systemd daemon
+
+- name: Ensure RPS service enabled and applied
+  ansible.builtin.systemd:
+    name: "{{ ubuntu_vm.rps.service }}"
+    enabled: true
+    state: restarted
+  when: ubuntu_vm.rps.manage | bool
+  become: true

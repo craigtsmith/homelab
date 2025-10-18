@@ -1,0 +1,7 @@
+---
+- name: Sysctl
+  ansible.builtin.import_tasks: networking/sysctl.yml
+- name: Multiqueue
+  ansible.builtin.import_tasks: networking/multiqueue.yml
+- name: RPS
+  ansible.builtin.import_tasks: networking/rps.yml

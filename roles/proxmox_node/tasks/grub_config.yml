@@ -1,0 +1,16 @@
+---
+- name: Install grub-efi-amd64
+  ansible.builtin.apt:
+    name: grub-efi-amd64
+    state: present
+    update_cache: true
+
+- name: Update GRUB configuration
+  ansible.builtin.replace:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT="quiet"$'
+    replace: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on iommu=pt"'
+  register: grub_config_change
+  notify:
+    - Run update-grub
+    - Reboot after grub update

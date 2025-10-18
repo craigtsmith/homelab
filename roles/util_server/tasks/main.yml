@@ -1,0 +1,14 @@
+---
+- name: Ensure Redis tools PPA present
+  become: true
+  ansible.builtin.apt_repository:
+    repo: ppa:redislabs/redis
+    state: present
+  when: util_server.redis.enable_ppa | bool
+
+- name: Install database client tooling
+  become: true
+  ansible.builtin.apt:
+    name: "{{ util_server.packages }}"
+    state: present
+    update_cache: true

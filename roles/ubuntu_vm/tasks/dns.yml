@@ -1,0 +1,25 @@
+---
+- name: Ensure /etc/systemd/resolved.conf.d directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure systemd-resolved override for {{ domain }}
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/{{ domain }}.conf
+    content: |
+      [Resolve]
+      DNS={{ dns_host }}
+      Domains=~{{ domain }}
+      FallbackDNS=1.1.1.1
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Restart systemd-resolved to apply DNS override
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted

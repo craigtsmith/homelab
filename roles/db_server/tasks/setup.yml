@@ -1,0 +1,16 @@
+---
+- name: Install Python prerequisites
+  ansible.builtin.package:
+    name: "{{ db_server.python.packages }}"
+    state: present
+
+- name: Install shared Python packages
+  ansible.builtin.pip:
+    name: "{{ db_server.pip.common_packages }}"
+    state: present
+  when: db_server.pip.common_packages | length > 0
+
+- name: Ensure database system user exists
+  ansible.builtin.user:
+    name: "{{ db_server.system.user }}"
+    state: present

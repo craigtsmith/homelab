@@ -1,0 +1,62 @@
+---
+- name: Update /etc/apt/sources.list
+  ansible.builtin.copy:
+    src: sources.list
+    dest: /etc/apt/sources.list
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Apt update
+
+- name: Update /etc/apt/sources.list.d/pve-enterprise.list
+  ansible.builtin.copy:
+    src: pve-enterprise.list
+    dest: /etc/apt/sources.list.d/pve-enterprise.list
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Apt update
+
+- name: Update /etc/kernel/cmdline
+  ansible.builtin.copy:
+    src: cmdline
+    dest: /etc/kernel/cmdline
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+  register: cmdline_update
+  notify:
+    - Refresh proxmox boot config
+    - Update initramfs
+
+- name: Update /etc/modules
+  ansible.builtin.copy:
+    src: modules
+    dest: /etc/modules
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Update initramfs
+
+- name: Copy cloudinit snippets
+  ansible.builtin.import_tasks: ./copy-cloud-init-snippets.yml
+
+- name: Check if template config exists
+  become: true
+  ansible.builtin.stat:
+    path: "/etc/pve/qemu-server/{{ proxmox_nodes[inventory_hostname]['ubuntu-template-id'] }}.conf"
+  register: template_config
+
+- name: Create Ubuntu Template
+  ansible.builtin.import_tasks: ./create-ubuntu-template.yml
+  when: not template_config.stat.exists
+
+- name: Configure GRUB
+  ansible.builtin.import_tasks: ./grub_config.yml

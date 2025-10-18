@@ -1,0 +1,85 @@
+---
+- name: Install PgBouncer
+  ansible.builtin.apt:
+    name: pgbouncer
+    state: present
+    update_cache: true
+
+- name: Ensure pgbouncer_auth role exists with SUPERUSER and LOGIN
+  community.postgresql.postgresql_user:
+    name: pgbouncer_auth
+    role_attr_flags: "LOGIN,SUPERUSER"
+    state: present
+  become: true
+  become_user: postgres
+
+- name: Insert pgbouncer_auth trust block before IPv4 local connections
+  ansible.builtin.blockinfile:
+    path: /etc/postgresql/{{ db_server.postgres.version }}/main/pg_hba.conf
+    insertbefore: "^# IPv4 local connections:"
+    marker: "# {mark} ANSIBLE MANAGED PGBouncer auth_query"
+    block: |
+      # Allow PgBouncer to connect as pgbouncer_auth (lookup role) without password
+      host    all    pgbouncer_auth    127.0.0.1/32    trust
+  notify: restart postgresql
+
+- name: Write /etc/pgbouncer/pgbouncer.ini (auth_query mode)
+  ansible.builtin.copy:
+    dest: /etc/pgbouncer/pgbouncer.ini
+    mode: "0644"
+    content: |
+      [databases]
+      * = host=127.0.0.1 port=5432
+
+      [pgbouncer]
+      listen_addr = 127.0.0.1
+      listen_port = 6432
+      pool_mode = transaction
+
+      auth_type = scram-sha-256
+      auth_user = pgbouncer_auth
+      auth_dbname = postgres
+      auth_query = SELECT usename, passwd FROM pg_catalog.pg_shadow WHERE usename = $1
+
+      admin_users = {{ db_user['name'] }}, postgres
+      stats_users = {{ db_user['name'] }}, postgres
+
+      syslog = 1
+      syslog_ident = pgbouncer
+      pidfile = /run/pgbouncer/pgbouncer.pid
+      ignore_startup_parameters = extra_float_digits
+  notify: restart pgbouncer
+
+- name: Ensure /run/pgbouncer exists (owned by postgres:postgres per unit file)
+  ansible.builtin.file:
+    path: /run/pgbouncer
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0755"
+
+- name: Enable PgBouncer in /etc/default/pgbouncer
+  ansible.builtin.lineinfile:
+    path: /etc/default/pgbouncer
+    regexp: "^START="
+    line: "START=1"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Disable logfile in /etc/default/pgbouncer (use syslog/journal)
+  ansible.builtin.lineinfile:
+    path: /etc/default/pgbouncer
+    regexp: "^LOGFILE="
+    line: 'LOGFILE=""'
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure PgBouncer started and enabled
+  ansible.builtin.service:
+    name: pgbouncer
+    state: started
+    enabled: true

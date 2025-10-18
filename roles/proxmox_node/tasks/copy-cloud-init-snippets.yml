@@ -1,0 +1,18 @@
+---
+- name: Copy /root/snippets/cloudinit/snippets/user.yml
+  ansible.builtin.template:
+    src: user.yml.j2
+    dest: /root/snippets/cloudinit/snippets/user.yml
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy /root/snippets/cloudinit/snippets/network.yml
+  ansible.builtin.template:
+    src: network.yml.j2
+    dest: /root/snippets/cloudinit/snippets/network.yml
+    backup: true
+    owner: root
+    group: root
+    mode: "0644"

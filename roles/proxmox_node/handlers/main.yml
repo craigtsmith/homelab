@@ -1,0 +1,47 @@
+---
+- name: Apt update
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+
+- name: Refresh proxmox boot config
+  become: true
+  ansible.builtin.command: proxmox-boot-tool refresh
+  changed_when: true
+
+- name: Update initramfs
+  become: true
+  ansible.builtin.command: update-initramfs -u -k all
+  changed_when: true
+
+- name: Daemon-reload
+  become: true
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable-ethtool-service
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ (ethtool_service_name | default('ethtool-eno1')) }}.service"
+    enabled: true
+
+- name: Start-ethtool-service
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ (ethtool_service_name | default('ethtool-eno1')) }}.service"
+    state: started
+
+- name: Run update-grub
+  become: true
+  ansible.builtin.command: update-grub
+  changed_when: true
+
+- name: Reboot after grub update
+  become: true
+  ansible.builtin.reboot:
+    msg: "Rebooting to apply GRUB changes"
+    connect_timeout: 5
+    reboot_timeout: 600
+    pre_reboot_delay: 0
+    post_reboot_delay: 30

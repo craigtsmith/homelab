@@ -1,0 +1,9 @@
+---
+proxmox_api:
+  user: ansible@pve
+  role: PVEAdmin
+  path: /
+  token:
+    id: ansible
+    privsep: false
+    ttl_seconds: 3600

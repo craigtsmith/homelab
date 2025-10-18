@@ -1,0 +1,67 @@
+---
+- name: Ensure Proxmox automation user exists
+  ansible.builtin.command:
+    cmd: >-
+      pveum user add {{ proxmox_api.user }}
+      --comment "Managed by Ansible"
+  register: proxmox_api_user_add
+  failed_when: proxmox_api_user_add.rc not in [0, 255]
+  changed_when: proxmox_api_user_add.rc == 0
+  no_log: true
+
+- name: Ensure Proxmox automation user enabled
+  ansible.builtin.command:
+    cmd: pveum user modify {{ proxmox_api.user }} --enable 1
+  register: proxmox_api_user_enable
+  failed_when: proxmox_api_user_enable.rc not in [0, 255]
+  changed_when: proxmox_api_user_enable.rc == 0
+  no_log: true
+
+- name: Ensure Proxmox automation user has required role
+  ansible.builtin.command:
+    cmd: pveum aclmod {{ proxmox_api.path }} -user {{ proxmox_api.user }} -role {{ proxmox_api.role }}
+  register: proxmox_api_acl
+  failed_when: proxmox_api_acl.rc not in [0, 255]
+  changed_when: proxmox_api_acl.rc == 0
+  no_log: true
+
+- name: Delete existing Proxmox API token with same id (if any)
+  ansible.builtin.command:
+    cmd: pveum user token delete {{ proxmox_api.user }} {{ proxmox_api.token.id }}
+  register: proxmox_api_token_delete_pre
+  failed_when: proxmox_api_token_delete_pre.rc not in [0, 255]
+  changed_when: proxmox_api_token_delete_pre.rc == 0
+  no_log: true
+
+- name: Calculate token expiry timestamp
+  ansible.builtin.set_fact:
+    proxmox_api_token_expire: "{{ (ansible_date_time.epoch | int) + proxmox_api.token.ttl_seconds }}"
+
+- name: Create temporary Proxmox API token
+  ansible.builtin.command:
+    cmd: >-
+      pveum user token add {{ proxmox_api.user }} {{ proxmox_api.token.id }}
+      --privsep {{ 0 if proxmox_api.token.privsep else 1 }}
+      --expire {{ proxmox_api_token_expire }}
+      --output-format json
+  register: proxmox_api_token_create
+  failed_when: proxmox_api_token_create.rc != 0
+  changed_when: proxmox_api_token_create.rc == 0
+  no_log: true
+
+- name: Record temporary token secret
+  ansible.builtin.set_fact:
+    proxmox_api_token_secret: "{{ (proxmox_api_token_create.stdout | from_json).value }}"
+    proxmox_api_token_created: true
+    proxmox_api: >-
+      {{
+        proxmox_api
+        | combine(
+            {
+              'token': proxmox_api.token
+                        | combine({'secret': (proxmox_api_token_create.stdout | from_json).value})
+            },
+            recursive=True
+          )
+      }}
+  no_log: true

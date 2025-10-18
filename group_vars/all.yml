@@ -1,0 +1,7 @@
+---
+tz: "{{ lookup('env', 'TZ') | default('Europe/Amsterdam', true) }}"
+dns_host: "{{ lookup('env', 'DNS_HOST') }}"
+domain: "{{ lookup('env', 'DOMAIN') }}"
+vm_user_pass: "{{ lookup('env', 'VM_USER_PASS') }}"
+ssh_public_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"
+postgres_version: 14

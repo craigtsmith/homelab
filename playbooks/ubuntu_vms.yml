@@ -1,0 +1,54 @@
+---
+- name: Validate environment for Ubuntu VMs
+  import_playbook: common/validate_env.yml
+  vars:
+    required_env_vars:
+      - VM_USER_PASS
+
+- name: Proxmox - Configure VMs
+  hosts: proxmox_nodes
+  remote_user: root
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Enable virtio multiqueue
+      ansible.builtin.include_role:
+        name: ubuntu_vm
+        tasks_from: enable-virtio-multiqueue
+
+- name: Ubuntu VMs – Wait for reboot
+  hosts: ubuntu_vms
+  remote_user: serveradmin
+  become: true
+  gather_facts: false
+  vars:
+    wait_connect_timeout: 600
+  tasks:
+    - name: Wait for SSH after VM reboot
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: "{{ wait_connect_timeout }}"
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+- name: Ubuntu VMs
+  hosts: ubuntu_vms
+  remote_user: serveradmin
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Ubuntu role
+      ansible.builtin.include_role:
+        name: ubuntu_vm
+        tasks_from: main
+
+    - name: Ubuntu networking tweaks
+      ansible.builtin.include_role:
+        name: ubuntu_vm
+        tasks_from: networking
+
+    - name: Ceph client role
+      ansible.builtin.include_role:
+        name: ceph_client
+        tasks_from: main

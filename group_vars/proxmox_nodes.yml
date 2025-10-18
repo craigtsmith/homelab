@@ -1,0 +1,11 @@
+---
+proxmox_nodes:
+  pve1:
+    ubuntu-template-id: 9010
+    nic: eno1
+  pve2:
+    ubuntu-template-id: 9020
+    nic: eno1
+  pve3:
+    ubuntu-template-id: 9030
+    nic: eno1

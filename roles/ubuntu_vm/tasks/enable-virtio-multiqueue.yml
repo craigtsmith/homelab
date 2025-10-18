@@ -1,0 +1,125 @@
+---
+- name: Collect Ubuntu VM names targeted for multiqueue tuning
+  ansible.builtin.set_fact:
+    ubuntu_vm_target_names: >-
+      {{
+        groups['ubuntu_vms'] | default([])
+        | map('extract', hostvars, 'vm_name')
+        | select('defined')
+        | list
+      }}
+  changed_when: false
+
+- name: Determine Proxmox API connection parameters
+  ansible.builtin.set_fact:
+    proxmox_api_connection:
+      api_host: "{{ hostvars[inventory_hostname].ansible_host | default(inventory_hostname) }}"
+      api_user: "{{ proxmox_api.user }}"
+      api_token_id: "{{ proxmox_api.token.id }}"
+      api_token_secret: "{{ proxmox_api.token.secret | default(proxmox_api_token_secret) }}"
+      validate_certs: false
+      node_name: "{{ hostvars[inventory_hostname].hostname | default(inventory_hostname) }}"
+    ubuntu_vm_multiqueue_cap: "{{ ubuntu_vm.multiqueue.max_queues | int }}"
+  changed_when: false
+  no_log: true
+
+- name: Ensure Proxmox API credentials are present
+  ansible.builtin.assert:
+    that:
+      - proxmox_api_connection.api_user is defined
+      - proxmox_api_connection.api_token_id is defined
+      - proxmox_api_connection.api_token_secret | default('') | length > 0
+    fail_msg: "Proxmox API token not available; ensure proxmox_api_token role has executed."
+
+- name: Discover managed VMs that reside on this node
+  when: (ubuntu_vm_target_names | default([])) | length > 0
+  block:
+    - name: Gather VM inventory (current configuration)
+      community.proxmox.proxmox_vm_info:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        node: "{{ proxmox_api_connection.node_name }}"
+        type: qemu
+        config: current
+      register: proxmox_vm_info_result
+
+    - name: Build lookup for targeted VMs on this node
+      ansible.builtin.set_fact:
+        proxmox_vm_targets: "{{ proxmox_vm_targets | default({}) | combine({item.name: item}) }}"
+      loop: "{{ proxmox_vm_info_result.proxmox_vms | default([]) }}"
+      when:
+        - item.name is defined
+        - item.name in ubuntu_vm_target_names
+      changed_when: false
+
+    - name: Prepare queue configuration targets
+      ansible.builtin.set_fact:
+        proxmox_vm_queue_targets: >-
+          {{
+            proxmox_vm_queue_targets | default([])
+            + [ {
+                  'name': item.key,
+                  'vmid': item.value.vmid,
+                  'desired_queues': ([vm_calculated_vcpus, ubuntu_vm_multiqueue_cap] | min)
+                } ]
+          }}
+      loop: "{{ proxmox_vm_targets | default({}) | dict2items }}"
+      vars:
+        vm_config: "{{ item.value.config | default({}) }}"
+        vm_calculated_vcpus: >-
+          {{
+            vm_config.vcpus
+              | default(
+                  (vm_config.cores | default(1) | int)
+                  * (vm_config.sockets | default(1) | int)
+                )
+              | int
+          }}
+      when: proxmox_vm_targets is defined
+      changed_when: false
+
+    - name: Apply desired queue counts to net0
+      community.proxmox.proxmox_nic:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        vmid: "{{ item.vmid }}"
+        interface: net0
+        queues: "{{ item.desired_queues }}"
+      loop: "{{ proxmox_vm_queue_targets | default([]) }}"
+      loop_control:
+        label: "{{ item.name | default(item.vmid) }}"
+      register: proxmox_queue_results
+      when: (proxmox_vm_queue_targets | default([])) | length > 0
+
+    - name: Capture VMs requiring restart
+      ansible.builtin.set_fact:
+        proxmox_queue_restarts: >-
+          {{
+            proxmox_queue_results.results
+            | default([])
+            | selectattr('changed', 'equalto', True)
+            | map(attribute='item')
+            | list
+          }}
+      when: proxmox_queue_results is defined
+      changed_when: false
+
+    - name: Restart VMs with updated queue settings
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_connection.api_host }}"
+        api_user: "{{ proxmox_api_connection.api_user }}"
+        api_token_id: "{{ proxmox_api_connection.api_token_id }}"
+        api_token_secret: "{{ proxmox_api_connection.api_token_secret }}"
+        validate_certs: "{{ proxmox_api_connection.validate_certs }}"
+        vmid: "{{ item.vmid }}"
+        state: restarted
+      loop: "{{ proxmox_queue_restarts | default([]) }}"
+      loop_control:
+        label: "{{ item.name | default(item.vmid) }}"
+      when: (proxmox_queue_restarts | default([])) | length > 0

@@ -1,0 +1,37 @@
+---
+docker_host:
+  repo:
+    # Docker repository configuration
+    distro: "{{ ansible_distribution | default('Ubuntu') | lower }}"
+    codename: "{{ ansible_distribution_release | default('focal') }}"
+    channel: stable
+    arch: amd64
+    url: "https://download.docker.com/linux/{{ docker_host.repo.distro }}"
+
+  engine:
+    # Engine packages and version pinning
+    version: "{{ lookup('env', 'DOCKER_VERSION') | default('5:25.0.5-1~ubuntu.20.04~focal', true) }}"
+    packages:
+      - docker-ce
+      - docker-ce-cli
+    hold_packages: "{{ docker_host.engine.packages }}"
+
+  networking:
+    # Networking defaults
+    dns_upstream: "{{ dns_host | default(lookup('env', 'DNS_HOST'), true) | default('1.1.1.1') }}"
+    bridge:
+      default_cidrs:
+        - 172.18.0.0/16
+        - 172.17.0.0/16
+      cidrs: []
+  portainer:
+    image: "{{ lookup('env', 'PORTAINER_IMAGE') | default('portainer/portainer-ee:2.19.4', true) }}"
+    agent_image: "{{ lookup('env', 'PORTAINER_AGENT_IMAGE') | default('portainer/agent:2.19.4', true) }}"
+    data_volume_path: "{{ lookup('env', 'PORTAINER_DATA_VOLUME_PATH') | default('/var/lib/portainer', true) }}"
+
+  traefik:
+    image: "{{ lookup('env', 'TRAEFIK_IMAGE') | default('traefik:v2.10.3', true) }}"
+
+  domain: "{{ domain | default(lookup('env', 'DOMAIN'), true) | default('') }}"
+
+  role: "{{ kind | default('manager') }}"
