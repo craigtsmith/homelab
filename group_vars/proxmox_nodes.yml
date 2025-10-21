@@ -2,10 +2,13 @@
 proxmox_nodes:
   pve1:
     ubuntu-template-id: 9010
+    ansible_user: root
     nic: eno1
   pve2:
     ubuntu-template-id: 9020
+    ansible_user: root
     nic: eno1
   pve3:
     ubuntu-template-id: 9030
+    ansible_user: root
     nic: eno1
