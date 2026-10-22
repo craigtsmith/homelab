@@ -66,8 +66,12 @@ def promote(doc, vmid, live_config, live_node, volatile):
 
 
 def _pvesh(path, *args):
-    out = subprocess.run(["ssh", "-o", "BatchMode=yes", MANAGER, "pvesh", "get", path, *args, "--output-format", "json"],
-                         check=True, capture_output=True, text=True).stdout
+    out = subprocess.run(
+        ["ssh", "-o", "BatchMode=yes", MANAGER, "pvesh", "get", path, *args, "--output-format", "json"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
     return json.loads(out)
 
 

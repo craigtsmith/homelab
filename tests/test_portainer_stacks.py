@@ -4,9 +4,8 @@ import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-_spec = importlib.util.spec_from_file_location(
-    "stacks", ROOT / "roles/portainer_stacks/filter_plugins/stacks.py"
-)
+_spec = importlib.util.spec_from_file_location("stacks", ROOT / "roles/portainer_stacks/filter_plugins/stacks.py")
+assert _spec is not None and _spec.loader is not None
 stacks = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(stacks)
 

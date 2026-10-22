@@ -18,12 +18,23 @@ SECTION_FILES = {
 }
 
 # Revert order: things that others reference come first
-KIND_ORDER = ["role", "group", "pool", "user", "membership", "acl", "token",
-              "storage", "realm", "job", "usb-mapping", "datacenter"]
+KIND_ORDER = [
+    "role",
+    "group",
+    "pool",
+    "user",
+    "membership",
+    "acl",
+    "token",
+    "storage",
+    "realm",
+    "job",
+    "usb-mapping",
+    "datacenter",
+]
 
 # Comma lists compared and written as sets
-SORTED_LISTS = {("group", "members"), ("pool", "vms"), ("pool", "storage"),
-                ("role", "privs"), ("acl", "roles")}
+SORTED_LISTS = {("group", "members"), ("pool", "vms"), ("pool", "storage"), ("role", "privs"), ("acl", "roles")}
 
 
 def _obj(kind, id_, keys, type_=None):
@@ -40,6 +51,8 @@ def _parse_sections(text, kind, typed):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         if line[0] in " \t":
+            if keys is None:
+                raise ValueError("%s: key line before the first section: %r" % (kind, line))
             k, _, v = line.strip().partition(" ")
             v = v.strip()
             if k in keys:  # repeated keys (usb `map`) become a sorted list
@@ -73,16 +86,19 @@ def _parse_user(text):
         if kind == "user":
             names = ["enable", "expire", "firstname", "lastname", "email", "comment", "keys"]
             vals = (f[2:9] + [""] * 7)[:7]
-            keys = {n: unquote(v) if n in ("firstname", "lastname", "comment") else v
-                    for n, v in zip(names, vals)}
+            keys = {
+                n: unquote(v) if n in ("firstname", "lastname", "comment") else v
+                for n, v in zip(names, vals, strict=True)
+            }
             out["user:" + f[1]] = _obj("user", f[1], keys)
         elif kind == "token":
             out["token:" + f[1]] = _obj("token", f[1], {"expire": f[2], "privsep": f[3], "comment": unquote(f[4])})
         elif kind == "group":
             out["group:" + f[1]] = _obj("group", f[1], {"members": _csv(f[2]), "comment": unquote(f[3])})
         elif kind == "pool":
-            out["pool:" + f[1]] = _obj("pool", f[1], {"comment": unquote(f[2]), "vms": _csv(f[3]),
-                                                      "storage": _csv(f[4])})
+            out["pool:" + f[1]] = _obj(
+                "pool", f[1], {"comment": unquote(f[2]), "vms": _csv(f[3]), "storage": _csv(f[4])}
+            )
         elif kind == "role":
             out["role:" + f[1]] = _obj("role", f[1], {"privs": _csv(f[2])})
         elif kind == "acl":
@@ -108,7 +124,7 @@ def pve_cfg_parse(text, dest):
 def pve_cfg_parse_all(texts, dests):
     """Objects from several files: texts and dests are parallel lists."""
     out = {}
-    for text, dest in zip(texts, dests):
+    for text, dest in zip(texts, dests, strict=True):
         out.update(pve_cfg_parse(text, dest))
     return out
 
@@ -203,14 +219,29 @@ def _plan(name, r, l, repo):
         for member in ("vms", "storage"):
             want_set, have_set = set(filter(None, keys[member].split(","))), set(filter(None, have[member].split(",")))
             if want_set - have_set:
-                cmds.append(["pvesh", "set", "/pools", "--poolid", id_, "--" + member, _csv(",".join(want_set - have_set))])
+                cmds.append(
+                    ["pvesh", "set", "/pools", "--poolid", id_, "--" + member, _csv(",".join(want_set - have_set))]
+                )
             if have_set - want_set:
-                cmds.append(["pvesh", "set", "/pools", "--poolid", id_, "--" + member,
-                             _csv(",".join(have_set - want_set)), "--delete", "1"])
+                cmds.append(
+                    [
+                        "pvesh",
+                        "set",
+                        "/pools",
+                        "--poolid",
+                        id_,
+                        "--" + member,
+                        _csv(",".join(have_set - want_set)),
+                        "--delete",
+                        "1",
+                    ]
+                )
         return cmds, None
     if kind == "user":
         if l is None:
-            return [["pvesh", "create", "/access/users", "--userid", id_] + _args({k: v for k, v in keys.items() if v})], None
+            return [
+                ["pvesh", "create", "/access/users", "--userid", id_] + _args({k: v for k, v in keys.items() if v})
+            ], None
         return [["pvesh", "set", "/access/users/" + id_] + _args(changed)], None
     if kind == "acl":
         path, ugid = id_.rsplit(":", 1)
@@ -235,9 +266,11 @@ def _plan(name, r, l, repo):
 
 def _memberships(repo, live, selected):
     """Users whose group list differs, for selected groups: set the full repo list."""
+
     def groups_of(objs, user):
-        return _csv(",".join(o["id"] for o in objs.values()
-                             if o["kind"] == "group" and user in o["keys"]["members"].split(",")))
+        return _csv(
+            ",".join(o["id"] for o in objs.values() if o["kind"] == "group" and user in o["keys"]["members"].split(","))
+        )
 
     users = set()
     for name, g in repo.items():
@@ -246,9 +279,15 @@ def _memberships(repo, live, selected):
         want = set(filter(None, g["keys"]["members"].split(",")))
         have = set(filter(None, live[name]["keys"]["members"].split(","))) if name in live else set()
         users |= want ^ have
-    return [{"id": "membership:" + u, "kind": "membership",
-             "argv": ["pvesh", "set", "/access/users/" + u, "--groups", groups_of(repo, u)]}
-            for u in sorted(users) if groups_of(repo, u) != groups_of(live, u)]
+    return [
+        {
+            "id": "membership:" + u,
+            "kind": "membership",
+            "argv": ["pvesh", "set", "/access/users/" + u, "--groups", groups_of(repo, u)],
+        }
+        for u in sorted(users)
+        if groups_of(repo, u) != groups_of(live, u)
+    ]
 
 
 def _selected(name, selected):

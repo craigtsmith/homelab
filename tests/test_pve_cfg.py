@@ -8,6 +8,7 @@ FILES = ROOT / "roles/proxmox_cluster_config/files"
 _spec = importlib.util.spec_from_file_location(
     "pve_cfg", ROOT / "roles/proxmox_cluster_config/filter_plugins/pve_cfg.py"
 )
+assert _spec is not None and _spec.loader is not None
 pve_cfg = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(pve_cfg)
 
@@ -25,8 +26,12 @@ def objs(**files):
 
 def test_section_config():
     o = parse("dir: local\n\tpath /var/lib/vz\n\tshared 0\n\nrbd: ceph_rbd\n\tkrbd 0\n", "storage.cfg")
-    assert o["storage:local"] == {"kind": "storage", "id": "local", "type": "dir",
-                                  "keys": {"path": "/var/lib/vz", "shared": "0"}}
+    assert o["storage:local"] == {
+        "kind": "storage",
+        "id": "local",
+        "type": "dir",
+        "keys": {"path": "/var/lib/vz", "shared": "0"},
+    }
     assert o["storage:ceph_rbd"]["type"] == "rbd"
 
 
@@ -69,8 +74,13 @@ def test_drift_reports_missing_changed_unmanaged():
 
 
 def test_drift_ignores_key_order():
-    assert drift(parse("dir: a\n\tpath /x\n\tshared 0\n", "storage.cfg"),
-                 parse("dir: a\n\tshared 0\n\tpath /x\n", "storage.cfg")) == []
+    assert (
+        drift(
+            parse("dir: a\n\tpath /x\n\tshared 0\n", "storage.cfg"),
+            parse("dir: a\n\tshared 0\n\tpath /x\n", "storage.cfg"),
+        )
+        == []
+    )
 
 
 def test_commands_storage():
@@ -93,12 +103,16 @@ def test_commands_respect_selection():
 
 
 def test_commands_job_and_mapping_and_datacenter():
-    repo = objs(jobs_cfg="vzdump: n\n\tschedule 02:00\n\tstorage pbs\n",
-                mapping_usb_cfg="m\n\tmap id=1:2,node=pve3\n",
-                datacenter_cfg="keyboard: en-us\n")
-    live = objs(jobs_cfg="vzdump: n\n\tschedule 03:00\n\tstorage pbs\n",
-                mapping_usb_cfg="m\n\tmap id=1:2,node=pve1\n",
-                datacenter_cfg="keyboard: de\nconsole: html5\n")
+    repo = objs(
+        jobs_cfg="vzdump: n\n\tschedule 02:00\n\tstorage pbs\n",
+        mapping_usb_cfg="m\n\tmap id=1:2,node=pve3\n",
+        datacenter_cfg="keyboard: en-us\n",
+    )
+    live = objs(
+        jobs_cfg="vzdump: n\n\tschedule 03:00\n\tstorage pbs\n",
+        mapping_usb_cfg="m\n\tmap id=1:2,node=pve1\n",
+        datacenter_cfg="keyboard: de\nconsole: html5\n",
+    )
     assert [c["argv"] for c in commands(repo, live, [])] == [
         ["pvesh", "set", "/cluster/backup/n", "--schedule", "02:00"],
         ["pvesh", "set", "/cluster/mapping/usb/m", "--map", "id=1:2,node=pve3"],
@@ -113,14 +127,12 @@ def test_commands_access_control():
         "pool:p:pc:101::\n"
         "role:r:Sys.Audit,VM.Audit:\n"
         "acl:1:/vms:@g,u@pve!t:r:\n",
-        "user.cfg")
+        "user.cfg",
+    )
     live = parse(
-        "user:u@pve:1:0:A:X:a@b:::\n"
-        "group:g::c:\n"
-        "pool:p:pc:102::\n"
-        "role:r:Sys.Audit:\n"
-        "acl:1:/vms:@g:r,PVEAuditor:\n",
-        "user.cfg")
+        "user:u@pve:1:0:A:X:a@b:::\ngroup:g::c:\npool:p:pc:102::\nrole:r:Sys.Audit:\nacl:1:/vms:@g:r,PVEAuditor:\n",
+        "user.cfg",
+    )
     assert [c["argv"] for c in commands(repo, live, [])] == [
         ["pvesh", "set", "/access/roles/r", "--privs", "Sys.Audit,VM.Audit"],
         ["pvesh", "set", "/pools", "--poolid", "p", "--vms", "101"],
@@ -138,16 +150,23 @@ def test_commands_tokens_are_report_only():
 
 
 def test_repo_files_parse_without_drift_against_themselves():
-    for dest, src in [("datacenter.cfg", "datacenter.cfg"), ("domains.cfg", "domains.cfg"),
-                      ("storage.cfg", "storage.cfg"), ("jobs.cfg", "jobs.cfg"),
-                      ("user.cfg", "user.cfg"), ("mapping/usb.cfg", "mapping-usb.cfg")]:
+    for dest, src in [
+        ("datacenter.cfg", "datacenter.cfg"),
+        ("domains.cfg", "domains.cfg"),
+        ("storage.cfg", "storage.cfg"),
+        ("jobs.cfg", "jobs.cfg"),
+        ("user.cfg", "user.cfg"),
+        ("mapping/usb.cfg", "mapping-usb.cfg"),
+    ]:
         o = parse((FILES / src).read_text(), dest)
         assert o and drift(o, o) == []
 
 
 def test_plan_lines():
-    plan = [{"id": "job:n", "argv": ["pvesh", "set", "/cluster/backup/n", "--notes-template", "{{guestname}} x"]},
-            {"id": "token:t", "argv": [], "note": "tokens are report-only"}]
+    plan = [
+        {"id": "job:n", "argv": ["pvesh", "set", "/cluster/backup/n", "--notes-template", "{{guestname}} x"]},
+        {"id": "token:t", "argv": [], "note": "tokens are report-only"},
+    ]
     assert pve_cfg.pve_cfg_plan_lines(plan) == [
         "job:n: pvesh set /cluster/backup/n --notes-template '{{guestname}} x'",
         "token:t: refused, tokens are report-only",

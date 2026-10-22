@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 _loader = importlib.machinery.SourceFileLoader("promote_guest", str(ROOT / "scripts/promote-guest"))
 _spec = importlib.util.spec_from_loader("promote_guest", _loader)
+assert _spec is not None
 pg = importlib.util.module_from_spec(_spec)
 _loader.exec_module(pg)
 
