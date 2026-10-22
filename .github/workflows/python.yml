@@ -1,0 +1,37 @@
+name: Python
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Ruff lint
+        run: uv run ruff check --output-format github
+
+      - name: Ruff format
+        run: uv run ruff format --check --diff
+
+      # The project run covers *.py; scripts without a suffix are named here
+      - name: Type check
+        run: |
+          uv run basedpyright
+          uv run basedpyright scripts/promote-guest
+
+      - name: Filter plugin tests
+        run: uv run pytest tests

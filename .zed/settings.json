@@ -1,0 +1,19 @@
+// Project settings for Zed. Python: basedpyright and ruff from .venv (`uv sync`),
+// with the config in pyproject.toml, the same as CI (.github/workflows/python.yml).
+{
+  "file_types": {
+    "Python": ["scripts/promote-guest"]
+  },
+  "languages": {
+    "Python": {
+      "language_servers": ["basedpyright", "ruff", "!ty", "!pyright", "!pylsp"],
+      "format_on_save": "on",
+      "formatter": {
+        "language_server": { "name": "ruff" }
+      },
+      "code_actions_on_format": {
+        "source.organizeImports.ruff": true
+      }
+    }
+  }
+}

@@ -9,3 +9,34 @@ dependencies = [
     "proxmoxer>=2.2.0",
     "requests>=2.32.3",
 ]
+
+[dependency-groups]
+dev = [
+    "basedpyright==1.40.2",
+    "ruff==0.17.1",
+]
+
+# Python lint and format: `uv run ruff check`, `uv run ruff format`. Zed runs the same
+# ruff through its language server (.zed/settings.json), CI through python.yml.
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+# Python scripts without a .py suffix
+extend-include = ["scripts/promote-guest"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# The filter plugins and scripts use %-formatting throughout
+ignore = ["UP031"]
+
+[tool.ruff.lint.per-file-ignores]
+# r, l: the repo and the live object of one name
+"roles/proxmox_cluster_config/filter_plugins/pve_cfg.py" = ["E741"]
+
+# Type check: `uv run basedpyright`. Zed's basedpyright reads the same settings.
+[tool.basedpyright]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+include = ["roles", "scripts", "tests"]
