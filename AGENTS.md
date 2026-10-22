@@ -101,6 +101,9 @@ scripts/drift [pattern]   # every playbook in check mode, one host at a time; _p
   merges and pushes. Never push.
 - Role variables are flat and have the role name as prefix (`ubuntu_vm_*`). Overrides are in
   `inventories/prod/group_vars` and `host_vars`.
+- A major-upgrade playbook is `playbooks/<component>_upgrade.yml` (`ceph_upgrade.yml`). Put
+  the release names and the per-release facts in variables, never in the playbook name. For
+  the next release, read its Proxmox upgrade guide, update the variables and add new steps.
 - Stateful resources are create-only: the swarm, Portainer stacks, the MySQL admin user and
   Proxmox guests.
 - You can delete files in the gitignored `_private/`, `roles/private/` and
