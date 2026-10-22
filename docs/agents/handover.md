@@ -1,6 +1,6 @@
 # Handover
 
-State on 2026-10-21. Read `AGENTS.md` first. Then read this file,
+State on 2026-10-22. Read `AGENTS.md` first. Then read this file,
 `docs/agents/learnings.md` and `docs/agents/backlog.md` (open work only).
 
 ## Where things are
@@ -11,6 +11,9 @@ State on 2026-10-21. Read `AGENTS.md` first. Then read this file,
   Monthly runs use ride mode.
 - Ceph runs Tentacle 20.2.4 with cephx `aes256k` only, and is HEALTH_OK. The rebuild
   runbook is `docs/rebuild.md`, and it installs Tentacle. The roles do not support focal.
+- The repo is public on GitHub (`craigtsmith/homelab`) since 2026-10-22, squashed into one
+  initial commit. Only `main` is on GitHub. The local branches `fix-setup` and `pre-squash`
+  hold the private values in their history: never push them.
 
 ### Hosts
 
@@ -93,6 +96,23 @@ State on 2026-10-21. Read `AGENTS.md` first. Then read this file,
 - `scripts/drift-audit/audit.sh` now skips keyrings, `/etc/letsencrypt/`, credential files,
   `.env` files, shell histories and cloud-init snippets.
 
+### Repo tooling (2026-10-22)
+
+- Each role has a `README.md` and a `meta/argument_specs.yml`. Ansible validates the role
+  inputs when a role starts, also in check mode. `tasks_from` is written without `.yml`, so
+  the entry points of `patch` and `proxmox_guests` validate too.
+- CI (all green on 2026-10-22): Ansible Lint, Ansible Syntax Check and Python (ruff,
+  basedpyright, `pytest tests`). `tests/test_argument_specs.py` keeps the spec defaults
+  equal to `defaults/main.yml`.
+- `docs/drift.md` explains report, revert and promote. `CLAUDE.md` is a symlink to
+  `AGENTS.md`. `.zed/settings.json` uses ruff and basedpyright from `.venv`.
+
+### Checks on 2026-10-22
+
+- `scripts/drift` at 13:12: `changed=0` and `failed=0` on all 23 runs, no drift, 73
+  argument validations passed. The newest CephFS backup was 9.8 h old.
+- The reMarkable checklist `/homelab/move-shutdown-2026-10-22` had no marks at about 14:00.
+
 ### Checks on 2026-10-21
 
 - At 17:37: Ceph HEALTH_OK. The nightly vzdump was OK. `cephfs-snapshot` (pve1-3, 3
@@ -120,16 +140,27 @@ State on 2026-10-21. Read `AGENTS.md` first. Then read this file,
   included (`agent: 1,freeze-fs=0` on pbs).
 - Network KVMs for pve1-3 are at 192.168.90.10, .20, .30 (LAN path, web UI on port 80).
 
-## Next session
+## Next session: the shutdown for the move
 
-craig moves house on 2026-10-22. craig will ask for help with the steps before the move:
+craig moves house on 2026-10-22. The next session shuts the lab down. The procedure is
+`docs/move.md`, "Shut down". craig ticks it on the reMarkable checklist
+`/homelab/move-shutdown-2026-10-22`.
 
-1. Stop sabnzbd, slskd and aurral on appbox1 (`docs/move.md`). They write to the NAS.
-2. craig does the shutdown checklist `/homelab/move-shutdown-2026-10-22`. On 2026-10-21,
-   nobody had opened it on the device, so it had no marks.
+1. Run the read-only pre-checks: `ceph -s` (HEALTH_OK), `ha-manager status`, the swarm
+   services, and the last nightly vzdump and CephFS backup.
+2. With craig's approval, stop sabnzbd, slskd and aurral on appbox1. They write to the NAS
+   over a `hard` NFS mount and hang when the NAS is off.
+3. craig does steps 2-8 on pve1 and the NAS (HA stops, `noout`, node power-off, NAS
+   shutdown). Every step stops a running service, so each one needs craig's go-ahead if the
+   agent runs it.
+4. Pull the marks: `pilcrow pull /homelab/move-shutdown-2026-10-22`. Record in this file
+   what was done and when, and what was not done.
 
 appbox1 stays up in Amsterdam (Deluge, Resilio, prowlarr, byparr and dispatcharr continue to
-run). After the move:
+run). While the lab is off, its apps cannot reach `*.<domain>` (proxy1 is off), so Prowlarr
+cannot reach Deluge (backlog). The arr apps are off too, so this has no effect.
+
+After the move:
 
 1. Pull craig's marks from the checklist: `pilcrow pull /homelab/move-shutdown-2026-10-22`.
 2. Ask craig what the new network is.
@@ -138,10 +169,8 @@ run). After the move:
 4. After power-on, start the NAS writers on appbox1.
 5. Run the read-only checks and `scripts/drift` (23 runs, with `portainer_stacks.yml`).
 
-Public repo: craig reads the README, `docs/architecture.md` and `CHANGELOG.md`, then squashes
-and pushes. The open items are in the backlog, "Public repo". Other open work: the appbox1
-items, 3b, 7c, 8b and the rebuild gaps. Ombi waits for a stable 4.60. The reMarkable CLI is
-`pilcrow`.
+Other open work: the appbox1 items, the "Public repo" leftovers, 3b, 7c, 8b and the rebuild
+gaps. Ombi waits for a stable 4.60. The reMarkable CLI is `pilcrow`.
 
 ## Dates and things craig owes
 
@@ -149,7 +178,7 @@ items, 3b, 7c, 8b and the rebuild gaps. Ombi waits for a stable 4.60. The reMark
   and in the Tailscale admin, and the adguard2 login. Deferred until the new network exists.
 - craig: delete the protected old-guest PBS snapshots when they are no longer needed. Create
   1Password `pve-root`. The proxy routing review (8b) when craig wants it. Decide what to do
-  with the private archive.
+  with the private archive, and with the local branches `fix-setup` and `pre-squash`.
 - About 2026-12-15: make sure that proxy1 renewed its certificates. By 2027-01-13: renew
   `tailscale-authkey`. By 2027-01-19: renew `tailscale-authkey-appbox`.
 
@@ -161,11 +190,15 @@ We're continuing the homelab Ansible work in ~/Projects/homelab.
 Before doing anything, read AGENTS.md, docs/agents/handover.md, docs/agents/learnings.md and
 docs/agents/backlog.md, then summarise back to me in a few lines where we are.
 
-The house move: help me with the pre-move steps in docs/move.md, or, if the lab is already
-moved, pull my marks from /homelab/move-shutdown-2026-10-22 with pilcrow, ask me what the new
-network looks like and plan the power-on against docs/move.md. After power-on run the
-read-only checks (Ceph health, nightly vzdump, CephFS snapshot and backup timers, swarm
-services, appbox1's media-remote stack) and scripts/drift.
+The house move: help me shut down the lab with docs/move.md, "Shut down". Run the read-only
+pre-checks first, then stop sabnzbd, slskd and aurral on appbox1 when I approve. I tick the
+reMarkable checklist /homelab/move-shutdown-2026-10-22; pull my marks with pilcrow at the end
+and record the result in the handover.
+
+If the lab is already moved: pull my marks, ask me what the new network looks like and plan
+the power-on against docs/move.md. After power-on run the read-only checks (Ceph health,
+nightly vzdump, CephFS snapshot and backup timers, swarm services, appbox1's media-remote
+stack) and scripts/drift.
 
 Rules: nothing that affects running services without my explicit approval for that
 specific action; --check first, one host at a time; never print secrets; tick

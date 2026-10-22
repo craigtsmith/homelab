@@ -23,6 +23,24 @@ separately.
 - **After phase 3 (2026-10-20/21):** app upgrades, dns2, appbox1, the runbook for the house
   move and the preparation for a public repo.
 
+## 2026-10-22
+
+- The repo was squashed into one initial commit and made public. Description and topics set.
+- Every role has a `README.md` and a `meta/argument_specs.yml`, validated when the role
+  starts. `tasks_from` lost its `.yml` suffix, because with it Ansible skipped validation.
+  `allow_duplicates` was removed from the dependency entries, where it was a role parameter.
+- Python: ruff and basedpyright in the `dev` group, `.zed/settings.json`, and a Python CI job
+  (lint, format, type check, `pytest tests`). The workflows use `actions/checkout@v7`,
+  `actions/setup-python@v7` and `astral-sh/setup-uv` v10.3.2.
+- `docs/drift.md` explains drift report, revert and promote, with a diagram.
+- `proxmox_guests_templates` holds the noble templates. The focal map and the comments about
+  the destroyed old guests were removed.
+- `patch_ceph_major_min_pve` replaces the hardcoded PVE 9.2 check of the Ceph upgrade.
+  Major-upgrade playbooks are named `<component>_upgrade.yml`.
+- `CLAUDE.md` is a symlink to `AGENTS.md`. The working branch is chosen per session.
+- Backlog: appbox1 apps reach each other through proxy1, a stale Prowlarr client, and the
+  cleanup of the old app state on appbox1.
+
 ## 2026-10-21
 
 - Public repo preparation:

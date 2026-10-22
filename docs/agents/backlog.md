@@ -30,7 +30,9 @@ This file holds open work only. At each session handover, remove the ticked item
 
 ## Move (2026-10-22)
 
-- [ ] craig shuts down the cluster and the NAS (checklist).
+- [ ] Stop sabnzbd, slskd and aurral on appbox1 (approval), before the NAS goes off.
+- [ ] craig shuts down the cluster and the NAS (`docs/move.md`, reMarkable checklist
+      `/homelab/move-shutdown-2026-10-22`).
 - [ ] At the new place, before power-on: decide the network.
       - The same 192.168.100.0/24 with gateway .1 and a route to the NAS at 192.168.1.50
         needs no repo change.
@@ -123,25 +125,26 @@ Steps 0-10 and 9e are done (rebuild runbook `docs/rebuild.md`).
 - [ ] The keys of the `ansible` user on pve2 and pve3: only the private key of pve1
       (`~/.ssh/ansible-key`) is on the controller.
 
-## Public repo (craig, 2026-10-21)
+## Public repo leftovers
 
-craig squashes all commits into one "initial commit" and pushes the repo as public.
+The repo is public since 2026-10-22. `main` had none of the `private.yml` values in its
+tree or history on that day.
 
-- [ ] craig reads `README.md`, `docs/architecture.md` and `CHANGELOG.md`, then squashes and
-      pushes.
-- [ ] After the squash, search the tree again for the domain, personal e-mail addresses,
-      public and tailnet IPs and secrets. The squash removes the old leaks in the history (a
-      personal e-mail address and `.pyc` files in early commits). The tree was clean on
-      2026-10-21.
-- [ ] After the push, make sure that GitHub renders the `architecture-beta` diagram in
+- [ ] The local branches `fix-setup` and `pre-squash` hold the domain, the Appbox host, the
+      tailnet IPs and AdGuard device IDs in their history. Never push them. craig decides
+      when to delete them.
+- [ ] Make sure that GitHub renders the `architecture-beta` diagram in
       `docs/architecture.md`. GitHub does not publish its Mermaid version. mermaid-cli 11
       renders it. If GitHub cannot render it, commit an SVG next to the source.
 - [ ] `~/Projects/homelab-private-archive-2026-10-21.tar.gz` (mode 600, the old `_private/`)
       holds secrets from the old audit logs: Ceph keys in 7 files and the Cloudflare token in
       2 files. craig decides: keep it, encrypt it, or delete it.
+
+## Notes
+
 - [ ] `ubuntu_vm`: a changed NIC unit template applies only at the next reboot (the units
       start, but do not restart). This is correct for rebuilds. It is important if the
       queues change on a live VM.
 
-Out of scope for now: monitoring and alerting, scheduled drift runs, CI other than lint and
-syntax.
+Out of scope for now: monitoring and alerting, scheduled drift runs, Molecule tests (most
+roles need the cluster; `test_vm.yml` and `test_lxc.yml` cover rebuilds).
