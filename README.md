@@ -60,6 +60,8 @@ uv run ansible-playbook playbooks/ubuntu_vms.yml --check --diff --limit docker3
 scripts/drift                     # every playbook in check mode; logs in _private/drift/<date>/
 uv run ansible-lint
 uv run pytest tests               # tests for the filter plugins and scripts
+uv run ruff check && uv run ruff format --check   # Python lint and format
+uv run basedpyright               # Python type check (config in pyproject.toml)
 ```
 
 ## Secrets

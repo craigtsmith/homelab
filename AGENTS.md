@@ -59,6 +59,7 @@ uv run ansible-galaxy collection install -r requirements.yml
 uv run ansible-playbook playbooks/<name>.yml --check --diff --limit <host>
 uv run ansible-lint
 uv run pytest tests       # filter plugin tests
+uv run ruff check && uv run ruff format --check && uv run basedpyright   # Python
 scripts/drift [pattern]   # every playbook in check mode, one host at a time; _private/drift/<date>/
 ```
 
