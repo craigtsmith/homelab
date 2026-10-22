@@ -47,14 +47,14 @@
     - name: List cluster guests
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: list.yml
+        tasks_from: list
 
     # A rerun converges the existing test LXC again (second-run changed=0 check)
     - name: Create test LXC from the Debian template
       when: test_vmid | int not in proxmox_guests_live_ids
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: lxc.yml
+        tasks_from: lxc
       vars:
         guest:
           vmid: "{{ test_vmid | int }}"
@@ -66,7 +66,7 @@
     - name: Wait for the test LXC address
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: lxc_ip.yml
+        tasks_from: lxc_ip
       vars:
         proxmox_guests_lxc_node: "{{ test_node }}"
         proxmox_guests_lxc_vmid: "{{ test_vmid }}"
@@ -118,7 +118,7 @@
     - name: Destroy test LXC
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: destroy.yml
+        tasks_from: destroy
       vars:
         proxmox_guests_destroy_vmid: "{{ test_vmid }}"
         proxmox_guests_destroy_node: "{{ test_node | default('pve3') }}"

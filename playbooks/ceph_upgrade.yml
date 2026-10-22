@@ -29,7 +29,7 @@
     - name: Check the cluster and set noout
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_major_check.yml
+        tasks_from: ceph_major_check
         apply:
           run_once: true
 
@@ -43,7 +43,7 @@
     - name: New Ceph repository and packages
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_major_packages.yml
+        tasks_from: ceph_major_packages
 
 - name: Ceph mon restarts
   hosts: proxmox_nodes
@@ -58,7 +58,7 @@
     - name: Restart the mon
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_restart.yml
+        tasks_from: ceph_restart
 
 - name: Ceph mgr restarts
   hosts: proxmox_nodes
@@ -73,7 +73,7 @@
     - name: Restart the mgr
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_restart.yml
+        tasks_from: ceph_restart
 
 - name: Ceph OSD restarts
   hosts: proxmox_nodes
@@ -87,7 +87,7 @@
     - name: Restart the OSDs
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_restart_osd.yml
+        tasks_from: ceph_restart_osd
 
 - name: Ceph MDS restarts
   hosts: proxmox_nodes
@@ -99,7 +99,7 @@
     - name: Restart the MDS daemons
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_restart_mds.yml
+        tasks_from: ceph_restart_mds
         apply:
           run_once: true
 
@@ -111,6 +111,6 @@
     - name: Require the new release and unset noout
       ansible.builtin.include_role:
         name: patch
-        tasks_from: ceph_major_finish.yml
+        tasks_from: ceph_major_finish
         apply:
           run_once: true

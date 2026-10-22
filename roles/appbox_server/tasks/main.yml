@@ -20,7 +20,7 @@
 - name: Install Docker
   ansible.builtin.include_role:
     name: docker_host
-    tasks_from: install-docker.yml
+    tasks_from: install-docker
 
 - name: Configure Docker daemon
   # in check mode on a new host /etc/docker does not exist yet

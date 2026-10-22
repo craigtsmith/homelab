@@ -22,7 +22,7 @@
     - name: Upgrade packages
       ansible.builtin.import_role:
         name: patch
-        tasks_from: packages.yml
+        tasks_from: packages
 
 - name: Node packages
   hosts: proxmox_nodes
@@ -34,7 +34,7 @@
     - name: Upgrade packages
       ansible.builtin.import_role:
         name: patch
-        tasks_from: packages.yml
+        tasks_from: packages
 
 - name: Ceph mon and mgr restarts
   hosts: proxmox_nodes
@@ -46,7 +46,7 @@
     - name: Restart outdated Ceph mons and mgrs
       ansible.builtin.import_role:
         name: patch
-        tasks_from: ceph_restart.yml
+        tasks_from: ceph_restart
 
 # -e patch_stop_swarm=true: runs once, when a node in the play needs a reboot
 - name: Swarm down
@@ -58,13 +58,13 @@
     - name: Decide on the reboots
       ansible.builtin.include_role:
         name: patch
-        tasks_from: reboot_needed.yml
+        tasks_from: reboot_needed
       when: patch_stop_swarm | bool
 
     - name: Stop the swarm
       ansible.builtin.include_role:
         name: patch
-        tasks_from: swarm_stop.yml
+        tasks_from: swarm_stop
       when:
         - patch_stop_swarm | bool
         - inventory_hostname == ansible_play_hosts[0]
@@ -80,7 +80,7 @@
     - name: Reboot the node
       ansible.builtin.import_role:
         name: patch
-        tasks_from: node_reboot.yml
+        tasks_from: node_reboot
 
 - name: Swarm up
   hosts: proxmox_nodes
@@ -91,7 +91,7 @@
     - name: Start the swarm
       ansible.builtin.include_role:
         name: patch
-        tasks_from: swarm_start.yml
+        tasks_from: swarm_start
       when:
         - patch_stop_swarm | bool
         - inventory_hostname == ansible_play_hosts[0]
@@ -106,4 +106,4 @@
     - name: Reboot the guest
       ansible.builtin.import_role:
         name: patch
-        tasks_from: guest_reboot.yml
+        tasks_from: guest_reboot

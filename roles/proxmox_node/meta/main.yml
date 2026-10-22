@@ -1,8 +1,5 @@
 ---
 dependencies:
   - role: common
-    allow_duplicates: false
   - role: unattended_upgrades
-    allow_duplicates: false
   - role: nic_names
-    allow_duplicates: false

@@ -4,7 +4,7 @@
 - name: Point ceph.sources at the new release
   ansible.builtin.include_role:
     name: proxmox_node
-    tasks_from: ceph_repo.yml
+    tasks_from: ceph_repo
   vars:
     proxmox_node_ceph_repo: "{{ patch_ceph_major_repo }}"
 

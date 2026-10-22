@@ -46,7 +46,7 @@
     - name: Clone test VM from the 24.04 template
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: clone.yml
+        tasks_from: clone
       vars:
         guest:
           vmid: "{{ test_vmid | int }}"
@@ -59,7 +59,7 @@
     - name: Wait for the test VM address
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: agent_ip.yml
+        tasks_from: agent_ip
       vars:
         proxmox_guests_agent_node: "{{ test_node }}"
         proxmox_guests_agent_vmid: "{{ test_vmid }}"
@@ -126,7 +126,7 @@
     - name: Destroy test VM
       ansible.builtin.include_role:
         name: proxmox_guests
-        tasks_from: destroy.yml
+        tasks_from: destroy
       vars:
         proxmox_guests_destroy_vmid: "{{ test_vmid }}"
         proxmox_guests_destroy_node: "{{ test_node | default('pve3') }}"
