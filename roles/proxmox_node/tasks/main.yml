@@ -1,7 +1,4 @@
 ---
-# Kernel command line, module and network changes take effect only after a
-# reboot or `ifreload -a`. This role never reboots or reloads networking.
-
 - name: Configure apt sources and apt hooks
   ansible.builtin.copy:
     src: "{{ item.src }}"

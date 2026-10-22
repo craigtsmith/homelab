@@ -102,6 +102,12 @@ scripts/drift [pattern]   # every playbook in check mode, one host at a time; _p
   pushes. Never push.
 - Role variables are flat and have the role name as prefix (`ubuntu_vm_*`). Overrides are in
   `inventories/prod/group_vars` and `host_vars`.
+- Each role has a `README.md` (purpose, what it does) and a `meta/argument_specs.yml` (the
+  inputs). Put role descriptions in the README, not in header comments. When you add a
+  variable, add it to the spec with the same `default` (`uv run pytest tests` checks this).
+  Leave out 1Password lookups and values from facts, and name them in the spec header.
+- Write `tasks_from: <name>` without `.yml`, and give each entry point that a playbook calls
+  its own spec. With the suffix, Ansible does not validate.
 - A major-upgrade playbook is `playbooks/<component>_upgrade.yml` (`ceph_upgrade.yml`). Put
   the release names and the per-release facts in variables, never in the playbook name. For
   the next release, read its Proxmox upgrade guide, update the variables and add new steps.

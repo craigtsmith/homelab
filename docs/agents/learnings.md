@@ -47,6 +47,16 @@ reason. Add new items to the correct section. Do not put learnings in other file
   `{{.Names}}` between `{% raw %}` and `{% endraw %}`.
 - `pkill -f <pattern>` in `ansible -m shell` also matches the shell that runs it. The task
   then stops with rc -15. Use `pgrep -a` to look, and match on the process name.
+- Write `tasks_from: packages`, not `tasks_from: packages.yml`. With the suffix, Ansible
+  finds no entry point in `meta/argument_specs.yml` and does not validate. It gives no
+  warning (Ansible 2.19).
+- In `meta/main.yml`, every key of a dependency entry except `role` is a role parameter.
+  `allow_duplicates: false` there was a parameter to `common`, and the argument spec
+  rejected it. `allow_duplicates` works only at the top level of the role's own
+  `meta/main.yml`.
+- Role argument validation templates every listed variable when the role starts. Do not
+  list 1Password lookups (every run then reads them) or values that come from facts (they
+  fail in plays without `gather_facts`).
 
 ## Secrets
 

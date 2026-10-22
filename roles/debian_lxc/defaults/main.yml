@@ -1,6 +1,4 @@
 ---
-# Base for Ansible-built Debian LXCs (dns1, proxy1). Proxmox manages hostname,
-# /etc/hosts, /etc/resolv.conf and the network inside the container.
 debian_lxc_packages:
   - bind9-dnsutils
   - ca-certificates

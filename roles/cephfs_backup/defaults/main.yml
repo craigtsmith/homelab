@@ -1,9 +1,4 @@
 ---
-# Nightly backup of CephFS directories to PBS (backlog 9c, craig 2026-10-17).
-# The nodes snapshot each directory daily (proxmox_node, cephfs-snapshot.timer);
-# this host backs up the newest scheduled snapshot read-only, so its cephx user
-# needs no snapshot right. The apps keep running; the copy is crash-consistent.
-
 # Directories under the CephFS mount (ceph_client_mount_path), one PBS host
 # backup each: <namespace>/host/cephfs-<dir>
 cephfs_backup_dirs: [docker]

@@ -1,7 +1,4 @@
 ---
-# Reverse proxy: nginx and certbot from Debian, with the proxy hosts that ran in Nginx
-# Proxy Manager (ct104) until 2026-10. Hosts and certificates are declared in
-# inventory and rendered into one file; there is no UI.
 proxy_server_packages:
   - nginx
   - certbot

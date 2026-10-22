@@ -1,12 +1,4 @@
 ---
-# Cluster-wide config in /etc/pve (pmxcfs), copied from the live cluster on
-# 2026-10-14. Parsed into objects by filter_plugins/pve_cfg.py; reverted on the
-# manager node with pvesh.
-# The files write the domain as ${domain}; the role substitutes it on read.
-# HA resources and rules are per object through the API, generated from the
-# `ha` key in guests.yml (tasks/ha.yml).
-# Secrets (token secrets, PBS password, keyrings) live in /etc/pve/priv and are
-# not managed here.
 proxmox_cluster_config_files:
   - { src: datacenter.cfg, dest: datacenter.cfg }
   - { src: domains.cfg, dest: domains.cfg }

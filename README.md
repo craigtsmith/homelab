@@ -156,6 +156,10 @@ the domain as `${domain}`.
 - **Check before every run:** `--check --diff --limit <host>` must report `changed=0`
   against production before a real run. Tasks that only read state set
   `check_mode: false` and `changed_when: false`.
+- **Documented and validated inputs:** each role has a `README.md` and a
+  `meta/argument_specs.yml`. Ansible validates the inputs when the role starts.
+  `uv run ansible-doc -t role -r roles <role>` shows them. `tests/test_argument_specs.py`
+  keeps the spec defaults equal to `defaults/main.yml`.
 
 ## Repository layout
 

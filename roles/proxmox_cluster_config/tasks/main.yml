@@ -1,6 +1,4 @@
 ---
-# Report (default), revert (proxmox_cluster_config_write) or promote
-# (proxmox_cluster_config_capture). See README.md, "Drift handling".
 - name: Refuse revert and promote together
   ansible.builtin.assert:
     that: not (proxmox_cluster_config_write | bool and proxmox_cluster_config_capture | bool)
