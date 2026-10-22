@@ -114,6 +114,8 @@ set `no_log: true`. Drift checks compare secrets by hash.
 
 ## Drift handling
 
+The full procedure, with a diagram, is in [`docs/drift.md`](docs/drift.md).
+
 The live state wins by default. A routine run never reverts manual changes. On drift, select
 one of these actions per object:
 
@@ -185,6 +187,7 @@ helpers for this lab only.
   and backup flow.
 - [`docs/operations.md`](docs/operations.md): how to rebuild a guest next to the old one,
   the CephFS backup and restore, a Ceph major upgrade and patching.
+- [`docs/drift.md`](docs/drift.md): how to find drift, and how to revert or promote it.
 - [`docs/rebuild.md`](docs/rebuild.md): how to rebuild the full lab from bare hardware.
 - [`docs/appbox.md`](docs/appbox.md): appbox1, the remote VPS for downloads.
 - [`docs/move.md`](docs/move.md): how to shut down and move the lab.
