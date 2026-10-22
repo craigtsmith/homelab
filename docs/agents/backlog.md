@@ -47,6 +47,12 @@ This file holds open work only. At each session handover, remove the ticked item
       `Downloads/`, `slskd`, `aurral`, `dispatcharr`) when appbox1 has run for some time.
 - [ ] Drop the databases `prowlarr-main` and `prowlarr-log` on db1 after a final dump, when
       appbox1 has run for some time.
+- [ ] Delete the copies of the old app state on appbox1 when appbox1 has run for some time:
+      `/srv/appbox/resilio/app-backup-2026-10-21` and
+      `/srv/appbox/deluge/torrents/config/deluge.pre-appbox1-202610211434`. Then remove
+      "Copies of the state" and "Rollback" from `docs/appbox.md`.
+- [ ] Prowlarr has a download client "Transmission (Seedbox)" on the old Appbox account
+      host. No Transmission runs on appbox1. Remove the client.
 - [ ] Replace Resilio (appbox1 container to the swarm `sync`) with a one-way copy from
       appbox1 to the NAS. First find out how the import and the deletions must work.
       - Resilio stays for now. It continues while the NAS is off (the move), and it seeds
