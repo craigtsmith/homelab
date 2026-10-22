@@ -1,0 +1,34 @@
+---
+# false removes the CephFS mount, its automount and the key (hosts that do not
+# use CephFS); ceph-common stays
+ceph_client_mount: true
+
+# aes256k key since 2026-10-19; vm_access (aes) is retired
+ceph_client_name: vm_cephfs
+ceph_client_keyring: /etc/ceph/ceph.client.{{ ceph_client_name }}.keyring
+ceph_client_key: "{{ lookup('community.general.onepassword', 'ceph-vm-cephfs', field='password', vault=op_vault) }}"
+# Keyrings of earlier CephFS users, removed when found (the cloud-init snippet
+# still writes vm_access's on a new VM)
+ceph_client_retired_names: [vm_access]
+
+# Kernel CephFS clients need 7.0 or newer for aes256k cephx keys; 24.04's GA
+# kernel is 6.8. Takes effect at the next reboot (the role never reboots).
+ceph_client_kernel_package: linux-generic-hwe-24.04
+
+# Ubuntu's ceph-common 19.2.3 cannot load aes256k keys (mount.ceph: "secret is
+# not valid base64"); hosts that mount CephFS take ceph-common from Ceph's own
+# repo, at the cluster's release (test VM 851, 2026-10-19)
+ceph_client_repo_release: tentacle
+ceph_client_repo_url: https://download.ceph.com/debian-{{ ceph_client_repo_release }}/
+ceph_client_min_version: "20.2"
+# Ceph.com (release key) 08B7 3419 AC32 B4E9 66C1  A330 E84A C2C0 460F 3994
+ceph_client_keyring_url: https://download.ceph.com/keys/release.gpg
+ceph_client_keyring_checksum: sha256:feb43775d34cdd31bb78e32e0901f6d44aa76b086eebf0a6fb8aad76453e9ff8
+
+# CephFS root, mounted on first access through systemd automount.
+# The cloud-init `mounts:` module wrote this entry, hence comment=cloudconfig.
+ceph_client_mount_src: p1.{{ domain }},p2.{{ domain }},p3.{{ domain }}:/
+ceph_client_mount_path: /mnt/cephfs
+ceph_client_mount_opts: >-
+  name={{ ceph_client_name }},secretfile={{ ceph_client_keyring }},_netdev,noauto,x-systemd.automount,nofail,noatime,comment=cloudconfig
+ceph_client_automount: "{{ ceph_client_mount_path | regex_replace('^/', '') | replace('/', '-') }}.automount"

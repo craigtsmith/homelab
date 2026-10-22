@@ -1,0 +1,38 @@
+---
+# Reboot a VM or LXC when needed. Docker hosts are drained first and set
+# active again after. pbs waits for running tasks (backups, verify, GC).
+- name: Decide on the reboot
+  ansible.builtin.import_tasks: reboot_needed.yml
+
+- name: Reboot {{ inventory_hostname }}
+  when: patch_reboot_needed
+  block:
+    - name: Wait for running PBS tasks to finish
+      ansible.builtin.command: proxmox-backup-manager task list --output-format json
+      register: patch_pbs_tasks
+      changed_when: false
+      check_mode: false
+      until: patch_pbs_tasks.rc == 0 and patch_pbs_tasks.stdout | from_json | length == 0
+      failed_when: patch_pbs_tasks.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: inventory_hostname in groups['pbs_servers']
+
+    - name: Drain the swarm node
+      ansible.builtin.include_tasks: swarm_drain.yml
+      vars:
+        patch_swarm_node: "{{ inventory_hostname }}"
+      when: inventory_hostname in groups['docker_hosts']
+
+    # In an LXC /proc/sys/kernel/random/boot_id is the node's, so the start
+    # time of PID 1 tells that the container restarted.
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        boot_time_command: "{{ 'ps -o lstart= -p 1' if ansible_facts.virtualization_type == 'lxc' else 'cat /proc/sys/kernel/random/boot_id' }}"
+
+    - name: Set the swarm node active
+      ansible.builtin.include_tasks: swarm_active.yml
+      vars:
+        patch_swarm_node: "{{ inventory_hostname }}"
+      when: inventory_hostname in groups['docker_hosts']

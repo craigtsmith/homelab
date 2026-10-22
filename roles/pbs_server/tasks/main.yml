@@ -1,0 +1,59 @@
+---
+- name: Configure apt sources and apt hooks
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ pbs_server_apt_files }}"
+
+# VM 900 has agent: 1; without the agent its backup skips the filesystem freeze
+- name: Install the QEMU guest agent
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+
+# static unit, started by udev when the virtio port appears; the port is
+# already there when the package arrives on a running VM
+- name: Start the QEMU guest agent
+  ansible.builtin.systemd_service:
+    name: qemu-guest-agent
+    state: started
+
+- name: Configure /etc/hosts
+  ansible.builtin.template:
+    src: hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure network interfaces (applied on reboot or ifreload -a)
+  ansible.builtin.copy:
+    src: interfaces
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Mount NAS shares
+  ansible.posix.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: nfs
+    opts: "{{ pbs_server_mount_opts }}"
+    state: mounted
+  loop: "{{ pbs_server_mounts }}"
+
+- name: Configure datastore, prune and verify jobs
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/proxmox-backup/{{ item }}
+    owner: root
+    group: backup
+    mode: "0640"
+  loop: "{{ pbs_server_config_files }}"
+
+- name: Users, namespaces, backup tokens and ACLs
+  ansible.builtin.import_tasks: users.yml

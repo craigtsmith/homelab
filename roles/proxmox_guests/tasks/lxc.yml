@@ -1,0 +1,39 @@
+---
+# Creates an LXC from the Debian template, with root's SSH key from the controller.
+# rootfs holds the live value ("storage:vm-N-disk-0,size=4G"); on create it is
+# rewritten to "storage:4" so Proxmox allocates a new volume.
+- name: Ensure the LXC template for {{ guest.name }}
+  ansible.builtin.include_tasks: lxc_template.yml
+  vars:
+    proxmox_guests_lxc_node: "{{ guest.node }}"
+    proxmox_guests_lxc_volid: "{{ guest.ostemplate | default(proxmox_guests_lxc_template) }}"
+
+- name: Create LXC {{ guest.name }}
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/lxc"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    body_format: form-urlencoded
+    body: "{{ lookup('ansible.builtin.template', 'lxc-config.j2') | from_yaml }}"
+    validate_certs: false
+  register: proxmox_guests_lxc_create
+  changed_when: true
+  no_log: true
+
+- name: Wait for LXC create to finish
+  ansible.builtin.include_tasks: wait_task.yml
+  vars:
+    proxmox_guests_upid: "{{ proxmox_guests_lxc_create.json.data }}"
+    proxmox_guests_task_node: "{{ guest.node }}"
+
+- name: Start the LXC (onboot guests, or guest.start)
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/lxc/{{ guest.vmid }}/status/start"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  when: guest.start | default(guest.config.onboot | default('0') == '1') | bool
+  changed_when: true
+  no_log: true

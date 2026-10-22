@@ -1,0 +1,73 @@
+---
+# Creates the cluster on the manager and joins the other nodes. Nodes that
+# already have /etc/pve/corosync.conf are skipped, so running this against
+# the live cluster does nothing beyond the guard checks.
+- name: Validate environment for Proxmox cluster bootstrap
+  import_playbook: common/validate_env.yml
+
+- name: Bootstrap Proxmox cluster
+  hosts: proxmox_nodes
+  serial: 1
+  gather_facts: false
+
+  pre_tasks:
+    - name: Read existing corosync config
+      ansible.builtin.slurp:
+        src: /etc/pve/corosync.conf
+      register: cluster_corosync
+      failed_when: false
+
+    - name: Record cluster membership
+      ansible.builtin.set_fact:
+        cluster_existing_name: >-
+          {{ (cluster_corosync.content | default('') | b64decode
+              | regex_search('cluster_name:\s*(\S+)', '\1') | default([''], true)) | first }}
+
+    - name: Refuse to touch a node that belongs to a different cluster
+      ansible.builtin.assert:
+        that: cluster_existing_name in ['', cluster.name]
+        fail_msg: "{{ inventory_hostname }} is in cluster '{{ cluster_existing_name }}', expected '{{ cluster.name }}'"
+
+    - name: Skip nodes that are already clustered
+      ansible.builtin.meta: end_host
+      when: cluster_existing_name == cluster.name
+
+  tasks:
+    - name: Create cluster on the manager
+      community.proxmox.proxmox_cluster:
+        state: present
+        api_host: "{{ ansible_host }}"
+        api_user: "{{ cluster.user }}"
+        api_password: "{{ cluster.password }}"
+        validate_certs: "{{ cluster.validate_certs }}"
+        cluster_name: "{{ cluster.name }}"
+      when: cluster_role == 'manager'
+      no_log: true
+
+    - name: Read join information from the manager
+      community.proxmox.proxmox_cluster_join_info:
+        api_host: "{{ hostvars[manager].ansible_host }}"
+        api_user: "{{ cluster.user }}"
+        api_password: "{{ cluster.password }}"
+        validate_certs: "{{ cluster.validate_certs }}"
+      vars:
+        manager: >-
+          {{ groups['proxmox_nodes'] | map('extract', hostvars) | selectattr('cluster_role', 'eq', 'manager')
+             | map(attribute='inventory_hostname') | first }}
+      register: cluster_join_info
+      delegate_to: localhost
+      when: cluster_role == 'node'
+      no_log: true
+
+    - name: Join node to the cluster
+      community.proxmox.proxmox_cluster:
+        state: present
+        api_host: "{{ ansible_host }}"
+        api_user: "{{ cluster.user }}"
+        api_password: "{{ cluster.password }}"
+        validate_certs: "{{ cluster.validate_certs }}"
+        cluster_name: "{{ cluster.name }}"
+        master_ip: "{{ cluster_join_info.cluster_join.nodelist[0].pve_addr }}"
+        fingerprint: "{{ cluster_join_info.cluster_join.nodelist[0].pve_fp }}"
+      when: cluster_role == 'node'
+      no_log: true

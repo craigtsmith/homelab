@@ -1,0 +1,37 @@
+---
+# Downloads an LXC template from the Proxmox appliance index when the storage does
+# not hold it yet. proxmox_guests_lxc_volid: "<storage>:vztmpl/<file>"
+- name: List stored LXC templates
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_lxc_node }}/storage/{{ proxmox_guests_lxc_volid.split(':')[0] }}/content?content=vztmpl"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_vztmpl
+  check_mode: false
+  no_log: true
+
+- name: Download LXC template {{ proxmox_guests_lxc_volid.split('/')[-1] }}
+  when: proxmox_guests_lxc_volid not in (proxmox_guests_vztmpl.json.data | map(attribute='volid') | list)
+  block:
+    - name: Download LXC template from the appliance index
+      ansible.builtin.uri:
+        url: "{{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_lxc_node }}/aplinfo"
+        method: POST
+        headers:
+          Authorization: "{{ proxmox_guests_auth_header }}"
+        body_format: form-urlencoded
+        body:
+          storage: "{{ proxmox_guests_lxc_volid.split(':')[0] }}"
+          template: "{{ proxmox_guests_lxc_volid.split('/')[-1] }}"
+        validate_certs: false
+      register: proxmox_guests_aplinfo
+      changed_when: true
+      no_log: true
+
+    - name: Wait for the template download
+      ansible.builtin.include_tasks: wait_task.yml
+      vars:
+        proxmox_guests_upid: "{{ proxmox_guests_aplinfo.json.data }}"
+        proxmox_guests_task_node: "{{ proxmox_guests_lxc_node }}"
+      when: not ansible_check_mode

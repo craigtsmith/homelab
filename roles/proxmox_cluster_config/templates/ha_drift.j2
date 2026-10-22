@@ -1,0 +1,53 @@
+{% set live_res = dict(proxmox_cluster_config_ha_live_resources | map(attribute='sid') | zip(proxmox_cluster_config_ha_live_resources)) %}
+{% set live_rules = dict(proxmox_cluster_config_ha_live_rules | map(attribute='rule') | zip(proxmox_cluster_config_ha_live_rules)) %}
+{% set ns = namespace(sids=[], rules=[]) %}
+{% for g in proxmox_cluster_config_ha %}
+{%   set ns.sids = ns.sids + [g.sid] %}
+{%   if g.sid not in live_res %}
+- "ha resource {{ g.sid }} {{ g.name }}: missing"
+{%   elif live_res[g.sid].state != g.state %}
+- "ha resource {{ g.sid }} {{ g.name }}: state declared={{ g.state }} live={{ live_res[g.sid].state }}"
+{%   endif %}
+{%   if g.node %}
+{%     set id = g.name ~ '-affinity' %}
+{%     set ns.rules = ns.rules + [id] %}
+{%     set want = {'type': 'node-affinity', 'nodes': g.node, 'resources': g.sid, 'strict': '0', 'disable': '0', 'comment': g.name} %}
+{%     if id not in live_rules %}
+- "ha rule {{ id }}: missing"
+{%     else %}
+{%       for k, v in want.items() %}
+{%         set l = live_rules[id][k] | default('0' if k in ['strict', 'disable'] else '') | string %}
+{%         if k in ['nodes', 'resources'] %}{% set l = l.split(',') | sort | join(',') %}{% endif %}
+{%         if l != v %}
+- "ha rule {{ id }}: {{ k }} declared={{ v }} live={{ l }}"
+{%         endif %}
+{%       endfor %}
+{%     endif %}
+{%   endif %}
+{% endfor %}
+{% for r in proxmox_cluster_config_ha_resource_affinity %}
+{%   set ns.rules = ns.rules + [r.rule] %}
+{%   set want = {'type': 'resource-affinity', 'affinity': r.affinity, 'resources': r.resources | sort | join(','), 'disable': '0', 'comment': r.comment | default('')} %}
+{%   if r.rule not in live_rules %}
+- "ha rule {{ r.rule }}: missing"
+{%   else %}
+{%     for k, v in want.items() %}
+{%       set l = live_rules[r.rule][k] | default('0' if k == 'disable' else '') | string %}
+{%       if k == 'resources' %}{% set l = l.split(',') | sort | join(',') %}{% endif %}
+{%       if l != v %}
+- "ha rule {{ r.rule }}: {{ k }} declared={{ v }} live={{ l }}"
+{%       endif %}
+{%     endfor %}
+{%   endif %}
+{% endfor %}
+{% for r in proxmox_cluster_config_ha_live_rules if r.rule not in ns.rules %}
+{%   set held = r.resources.split(',') | select('in', ns.sids) | list %}
+{%   if r.type == 'node-affinity' and held %}
+- "ha rule {{ r.rule }}: unmanaged, holds {{ held | join(',') }} (revert deletes it)"
+{%   else %}
+- "ha rule {{ r.rule }}: unmanaged ({{ r.type }} {{ r.resources }})"
+{%   endif %}
+{% endfor %}
+{% for r in proxmox_cluster_config_ha_live_resources if r.sid not in ns.sids %}
+- "ha resource {{ r.sid }}: unmanaged"
+{% endfor %}

@@ -1,0 +1,45 @@
+---
+# Generate pbs_server_token's secret and store it in 1Password (field
+# `credential`). An existing item holds a secret PBS no longer has; it is
+# archived first.
+- name: Remove the token entry without a secret, {{ pbs_server_token.name }}
+  ansible.builtin.command: proxmox-backup-manager user delete-token {{ pbs_server_token.user }} {{ pbs_server_token.name }}
+  register: pbs_server_token_del
+  changed_when: pbs_server_token_del.rc == 0
+  failed_when: false
+
+- name: Generate the token, {{ pbs_server_token.name }}
+  ansible.builtin.command: >-
+    proxmox-backup-debug api create /access/users/{{ pbs_server_token.user }}/token/{{ pbs_server_token.name }}
+    --output-format json
+  register: pbs_server_token_out
+  changed_when: true
+  no_log: true
+
+- name: Archive an old 1Password item, {{ pbs_server_token.item }}
+  ansible.builtin.command: op item delete {{ pbs_server_token.item }} --vault {{ op_vault }} --archive
+  delegate_to: localhost
+  become: false
+  register: pbs_server_token_archive
+  changed_when: pbs_server_token_archive.rc == 0
+  failed_when: false
+  when: not ansible_check_mode
+
+# The secret reaches op on stdin, never on a command line
+- name: Store the secret in 1Password, {{ pbs_server_token.item }}
+  ansible.builtin.command:
+    cmd: op item create --vault {{ op_vault }} -
+    stdin: >-
+      {{ {'title': pbs_server_token.item, 'category': 'API_CREDENTIAL',
+          'fields': [
+            {'id': 'username', 'type': 'STRING', 'value': pbs_server_token.user ~ '!' ~ pbs_server_token.name},
+            {'id': 'credential', 'type': 'CONCEALED',
+             'value': (pbs_server_token_out.stdout | from_json).value},
+            {'id': 'hostname', 'type': 'STRING', 'value': ansible_host},
+            {'id': 'notesPlain', 'type': 'STRING',
+             'value': 'PBS API token, DatastoreBackup on /datastore/' ~ pbs_server_token.store ~ '/' ~ pbs_server_token.ns ~ ' (roles/pbs_server)'}]} | to_json }}
+  delegate_to: localhost
+  become: false
+  changed_when: true
+  no_log: true
+  when: not ansible_check_mode

@@ -1,0 +1,28 @@
+---
+# Waits until every PG is active+clean and no health check is raised apart from
+# patch_ceph_ignored_checks and patch_ceph_also_ignored. Fails on ceph errors.
+- name: Wait for Ceph health
+  ansible.builtin.shell: |
+    set -euo pipefail
+    # one JSON document per line (pg stat spreads over two)
+    ceph health detail -f json | tr -d '\n'
+    echo
+    ceph pg stat -f json | tr -d '\n'
+  args:
+    executable: /bin/bash
+  register: patch_ceph
+  changed_when: false
+  check_mode: false
+  vars:
+    patch_ceph_out: "{{ patch_ceph.stdout_lines | select | map('from_json') | list }}"
+    patch_ceph_checks: >-
+      {{ patch_ceph_out[0].checks.keys() | difference(patch_ceph_ignored_checks + patch_ceph_also_ignored | default([])) }}
+    patch_ceph_pgs: "{{ patch_ceph_out[1].pg_summary }}"
+    patch_ceph_clean: >-
+      {{ patch_ceph_pgs.num_pg_by_state | selectattr('name', 'eq', 'active+clean') | map(attribute='num') | sum }}
+  until: >-
+    patch_ceph.rc == 0 and patch_ceph_checks | length == 0
+    and patch_ceph_clean | int == patch_ceph_pgs.num_pgs | int
+  failed_when: patch_ceph.rc != 0
+  retries: "{{ patch_ceph_retries | default(patch_wait_retries) }}"
+  delay: 10

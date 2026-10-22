@@ -1,0 +1,25 @@
+version: "3.8"
+
+networks:
+  traefik-public:
+    external: true
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    volumes:
+      - /mnt/cephfs/docker/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 3001:3000
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.homepage.rule=Host(`home.{{ domain }}`)"
+        - "traefik.http.services.homepage.loadbalancer.server.port=3000"
+        - "traefik.swarm.network=traefik-public"
+    environment:
+      HOMEPAGE_ALLOWED_HOSTS: home.{{ domain }}

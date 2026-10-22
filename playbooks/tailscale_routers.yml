@@ -1,0 +1,10 @@
+---
+- name: Validate environment for Tailscale routers
+  import_playbook: common/validate_env.yml
+
+- name: Tailscale subnet routers
+  hosts: tailscale_routers
+  become: true
+  gather_facts: true
+  roles:
+    - role: tailscale_router

@@ -1,0 +1,20 @@
+---
+# Portainer stacks on the swarm (roles/portainer_stacks, playbooks/portainer_stacks.yml).
+# Each renders stacks/swarm/<name>.yml.j2; env values come from 1Password. The
+# portainer-traefik stack is roles/docker_host; appbox1's media-remote is stacks/appbox1/.
+portainer_stacks:
+  - name: homepage
+  - name: karakeep
+    env:
+      MEILI_MASTER_KEY: "{{ lookup('community.general.onepassword', 'karakeep-meili-master-key', field='password', vault=op_vault) }}"
+      NEXTAUTH_SECRET: "{{ lookup('community.general.onepassword', 'karakeep-nextauth-secret', field='password', vault=op_vault) }}"
+      OPENAI_API_KEY: "{{ lookup('community.general.onepassword', 'karakeep-openai-api-key', field='password', vault=op_vault) }}"
+  - name: media-server
+  - name: paperless
+    env:
+      PAPERLESS_SECRET_KEY: "{{ lookup('community.general.onepassword', 'paperless-secret-key', field='password', vault=op_vault) }}"
+      PAPERLESS_DBPASS: "{{ lookup('community.general.onepassword', 'paperless-db', field='password', vault=op_vault) }}"
+  - name: rustfs
+    env:
+      RUSTFS_ACCESS_KEY: "{{ lookup('community.general.onepassword', 'rustfs-root', field='username', vault=op_vault) }}"
+      RUSTFS_SECRET_KEY: "{{ lookup('community.general.onepassword', 'rustfs-root', field='password', vault=op_vault) }}"

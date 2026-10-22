@@ -1,0 +1,80 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ appbox_server_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ appbox_server_timezone }}"
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ appbox_server_hostname }}"
+
+- name: Configure the firewall
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Install Docker
+  ansible.builtin.include_role:
+    name: docker_host
+    tasks_from: install-docker.yml
+
+- name: Configure Docker daemon
+  # in check mode on a new host /etc/docker does not exist yet
+  when: not (ansible_check_mode and docker_host_repo is changed)
+  ansible.builtin.copy:
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {"log-driver":"json-file","log-opts":{"max-size":"100m","max-file":"3"}}
+  notify: Restart Docker
+
+# Containers bind web UIs to the tailnet IP, which exists only once tailscaled is up
+- name: Allow binds to the tailnet IP before it exists
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-appbox.conf
+    state: present
+    reload: true
+
+- name: Create the Docker unit drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Start Docker after tailscaled
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/10-after-tailscale.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Wants=tailscaled.service
+      After=tailscaled.service remote-fs.target
+  notify: Reload systemd
+
+- name: Mount NAS shares over Tailscale
+  ansible.posix.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: "{{ appbox_server_mount_opts.split(' ') | first }}"
+    opts: "{{ appbox_server_mount_opts.split(' ') | last }}"
+    state: mounted
+  loop: "{{ appbox_server_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"
+  notify: Reload systemd
+
+- name: Deploy the compose project
+  ansible.builtin.import_tasks: compose.yml
+  when: appbox_server_compose_src | length > 0

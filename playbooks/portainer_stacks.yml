@@ -1,0 +1,12 @@
+---
+# Swarm stacks through the Portainer API. --check diffs the rendered files and the
+# stack env; a real run updates the stacks that differ (pullImage false).
+- name: Validate environment for Portainer stacks
+  import_playbook: common/validate_env.yml
+
+- name: Portainer stacks
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: portainer_stacks

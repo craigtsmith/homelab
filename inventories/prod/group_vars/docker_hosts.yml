@@ -1,0 +1,22 @@
+---
+docker_host_manager: docker1
+
+# The tailnet (appbox1) through tailscale1's subnet router
+ubuntu_vm_static_routes:
+  - { to: 100.64.0.0/10, via: 192.168.100.32 }
+
+# media-server_sabnzbd binds /mnt/scratch/sabnzbd/incomplete and runs as PUID/PGID 911
+docker_host_dirs:
+  - { path: /mnt/scratch/sabnzbd, owner: "911", group: "911", mode: "0775" }
+  - { path: /mnt/scratch/sabnzbd/incomplete, owner: "911", group: "911", mode: "0775" }
+  - { path: /mnt/cephfs/rustfs, owner: "10001", group: "10001", mode: "0750" }
+
+# /mnt/paperless and /mnt/nas-paperless mount the same export; one is a
+# remnant (see drift report) but both are kept until cleanup in phase 3.
+# /mnt/scratch is scsi1 (local-lvm), by-id so a rebuilt VM finds its new disk.
+ubuntu_vm_mounts:
+  - { src: "192.168.1.50:/volume2/docker", path: /mnt/docker, fstype: nfs4, opts: "rw,sync,hard,nconnect=4" }
+  - { src: "192.168.1.50:/volume2/Media", path: /mnt/nas-media, fstype: nfs4, opts: "rw,async,hard,noatime,nconnect=4,_netdev,nofail" }
+  - { src: "192.168.1.50:/volume2/Paperless", path: /mnt/paperless, fstype: nfs4, opts: "rw,sync,hard,nconnect=4" }
+  - { src: "192.168.1.50:/volume2/Paperless", path: /mnt/nas-paperless, fstype: nfs4, opts: "rw,sync,hard,nconnect=4" }
+  - { src: /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1, path: /mnt/scratch, fstype: ext4, opts: "defaults,noatime,nofail", passno: "2", mkfs: true }

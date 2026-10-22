@@ -1,0 +1,106 @@
+---
+# AdGuard Home settings for dns1 (roles/dns_server), from ct100 on 2026-10-16.
+# The UI writes the same file: promote UI edits here before a run, or it reverts them.
+dns_server_upstreams:
+  - https://dns10.quad9.net/dns-query
+  - https://dns.cloudflare.com/dns-query
+dns_server_bootstrap:
+  - 9.9.9.10
+  - 149.112.112.10
+  - 2620:fe::10
+  - 2620:fe::fe:10
+dns_server_upstream_mode: parallel
+dns_server_ratelimit: 20
+# Only 1 and 2 are enabled; the rest were tried in 2023
+dns_server_filters:
+  - id: 1
+    name: AdGuard DNS filter
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+    enabled: true
+  - id: 2
+    name: AdAway Default Blocklist
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
+    enabled: true
+  - id: 1693585828
+    name: OISD Blocklist Big
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_27.txt
+    enabled: false
+  - id: 1693585833
+    name: Dan Pollock's List
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_4.txt
+    enabled: false
+  - id: 1693585834
+    name: The NoTracking blocklist
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_32.txt
+    enabled: false
+  - id: 1693585835
+    name: Peter Lowe's Blocklist
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_3.txt
+    enabled: false
+  - id: 1693585836
+    name: HaGeZi Multi NORMAL
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_34.txt
+    enabled: false
+  - id: 1693585837
+    name: Perflyst and Dandelion Sprout's Smart-TV Blocklist
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_7.txt
+    enabled: false
+  - id: 1693585838
+    name: Steven Black's List
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_33.txt
+    enabled: false
+  - id: 1693585839
+    name: Dandelion Sprout's Anti Push Notifications
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_39.txt
+    enabled: false
+# The trailing empty rule is how the UI saves the list
+dns_server_user_rules:
+  - '@@||umami.is^$important'
+  - '@@||anthropic.com^$important'
+  - '@@||assetsconfigcdn.org^$important'
+  - '@@||featureassets.org^$important'
+  - ''
+# *.<domain> goes to the reverse proxy (proxy1 since 2026-10-16); named hosts resolve directly
+dns_server_rewrites:
+  - domain: "*.{{ domain }}"
+    answer: 192.168.100.27
+  - domain: "docker1.{{ domain }}"
+    answer: 192.168.100.11
+  - domain: "docker2.{{ domain }}"
+    answer: 192.168.100.21
+  - domain: "docker3.{{ domain }}"
+    answer: 192.168.100.31
+  - domain: "nas.{{ domain }}"
+    answer: 192.168.1.50
+  - domain: "util1.{{ domain }}"
+    answer: 192.168.100.12
+  - domain: "p1.{{ domain }}"
+    answer: 192.168.100.10
+  - domain: "p2.{{ domain }}"
+    answer: 192.168.100.20
+  - domain: "p3.{{ domain }}"
+    answer: 192.168.100.30
+  - domain: "tunnel1.{{ domain }}"
+    answer: 192.168.100.32
+  # Apps reach db1 directly; NPM's DB streams on ct104 are not carried over (2026-10-16)
+  - domain: "db1.{{ domain }}"
+    answer: 192.168.100.22
+  - domain: "dns1.{{ domain }}"
+    answer: 192.168.100.53
+  - domain: "proxy1.{{ domain }}"
+    answer: 192.168.100.27
+  - domain: "dns2.{{ domain }}"
+    answer: 192.168.100.54
+dns_server_clients:
+  - name: Personal Devices
+    uid: 0198c6df-610f-7140-8327-66e42498c361
+    ids: "{{ dns_personal_device_ids }}"
+    ignore_querylog: true
+  - name: UK Routed
+    uid: 0198c4f6-4c56-7cdf-8518-59bf36c46ad9
+    ids:
+      - 192.168.200.0/24
+    upstreams:
+      - 103.86.96.100
+      - 103.86.99.100
+    upstreams_cache_enabled: true

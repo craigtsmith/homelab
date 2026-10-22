@@ -1,0 +1,6 @@
+---
+skip_list:
+  - var-naming[no-role-prefix]
+  - role-name[path]
+warn_list:
+  - yaml[line-length]

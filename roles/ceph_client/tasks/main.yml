@@ -1,0 +1,27 @@
+---
+- name: Add the Ceph repository
+  ansible.builtin.include_tasks: repo.yml
+  when: ceph_client_mount
+
+# >= upgrades Ubuntu's 19.2 package, which cloud-init installs first
+- name: Install ceph-common
+  ansible.builtin.apt:
+    name: ceph-common{{ ('>=' ~ ceph_client_min_version) if ceph_client_mount else '' }}
+    state: present
+    update_cache: "{{ ceph_client_repo.changed | default(false) }}"
+  # check mode adds no repository, so a new one has no package yet
+  when: not (ansible_check_mode and (ceph_client_repo.changed | default(false)))
+
+- name: Remove keys of retired CephFS users
+  ansible.builtin.file:
+    path: /etc/ceph/ceph.client.{{ item }}.keyring
+    state: absent
+  loop: "{{ ceph_client_retired_names }}"
+
+- name: Mount CephFS
+  ansible.builtin.include_tasks: mount.yml
+  when: ceph_client_mount
+
+- name: Remove the CephFS mount
+  ansible.builtin.include_tasks: unmount.yml
+  when: not ceph_client_mount

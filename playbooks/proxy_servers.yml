@@ -1,0 +1,9 @@
+---
+- name: Validate environment for proxy servers
+  import_playbook: common/validate_env.yml
+
+- name: Reverse proxies (nginx)
+  hosts: proxy_servers
+  gather_facts: true
+  roles:
+    - role: proxy_server

@@ -1,0 +1,13 @@
+---
+- name: Validate environment for database servers
+  import_playbook: common/validate_env.yml
+
+- name: DB Servers
+  hosts: db_servers
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Db role
+      ansible.builtin.include_role:
+        name: db_server
+        tasks_from: main

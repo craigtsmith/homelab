@@ -1,0 +1,9 @@
+---
+# Secrets are read from the 1Password "homelab" vault through the op CLI.
+# Export OP_SERVICE_ACCOUNT_TOKEN (see .env.example) before running.
+op_vault: homelab
+
+tz: Europe/Amsterdam
+dns_hosts: [192.168.100.53, 192.168.100.54]
+vm_user_pass: "{{ lookup('community.general.onepassword', 'ubuntu-vm-user', field='password', vault=op_vault) }}"
+ssh_public_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_rsa.pub') }}"

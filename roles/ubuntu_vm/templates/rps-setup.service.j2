@@ -1,0 +1,14 @@
+[Unit]
+Description=Enable Receive Packet Steering
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for f in /sys/class/net/{{ ubuntu_vm_net_iface }}/queues/rx-*/rps_cpus; do [ -f "$f" ] && echo {{ ubuntu_vm_rps_cpus }} > "$f"; done'
+ExecStart=/bin/sh -c 'sysctl -w net.core.rps_sock_flow_entries={{ ubuntu_vm_rps_sock_flow_entries }}'
+ExecStart=/bin/sh -c 'for f in /sys/class/net/{{ ubuntu_vm_net_iface }}/queues/rx-*/rps_flow_cnt; do [ -f "$f" ] && echo {{ ubuntu_vm_rps_flow_cnt }} > "$f"; done'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

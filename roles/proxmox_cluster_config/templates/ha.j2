@@ -1,0 +1,6 @@
+{% for g in proxmox_guests | selectattr('ha', 'defined') %}
+- name: {{ g.name }}
+  sid: "{{ 'ct' if g.type == 'lxc' else 'vm' }}:{{ g.vmid }}"
+  state: {{ g.ha.state | default('started') }}
+  node: "{{ g.ha.node | default('') }}"
+{% endfor %}

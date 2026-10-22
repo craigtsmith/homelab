@@ -1,0 +1,44 @@
+---
+- name: Kernel networking sysctls (throughput, queue headroom, BBR + fq)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    reload: true
+  loop: "{{ ubuntu_vm_sysctls | dict2items }}"
+
+- name: Read NIC channel limits
+  ansible.builtin.command: ethtool -l {{ ubuntu_vm_net_iface }}
+  register: ubuntu_vm_ethtool_channels
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Set NIC queue maximum
+  ansible.builtin.set_fact:
+    ubuntu_vm_nic_max_queues: >-
+      {{ (ubuntu_vm_ethtool_channels.stdout | regex_findall('Combined:\s+(\d+)') + ['1']) | first }}
+
+- name: Install NIC queue and RPS units
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - ethtool-mq.service
+    - rps-setup.service
+  notify: Reload systemd daemon
+
+- name: Flush handlers so new units are known before enabling
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start NIC queue and RPS units
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - ethtool-mq.service
+    - rps-setup.service

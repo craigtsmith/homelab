@@ -1,0 +1,12 @@
+[Unit]
+Description=Set NIC combined queues
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/ethtool -L {{ ubuntu_vm_net_iface }} combined {{ ubuntu_vm_nic_queues }}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

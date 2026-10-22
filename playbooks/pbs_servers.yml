@@ -1,0 +1,9 @@
+---
+- name: Validate environment for Proxmox Backup Server
+  import_playbook: common/validate_env.yml
+
+- name: Proxmox Backup Server
+  hosts: pbs_servers
+  gather_facts: true
+  roles:
+    - role: pbs_server

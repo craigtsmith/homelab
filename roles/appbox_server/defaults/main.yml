@@ -1,0 +1,37 @@
+---
+appbox_server_hostname: "{{ inventory_hostname }}"
+appbox_server_timezone: "{{ tz }}"
+appbox_server_packages:
+  - nfs-common
+  - ufw
+  - htop
+  - jq
+  - ncdu
+
+# Inbound from the internet: SSH plus these ports (P2P listen ports). Everything
+# else arrives over tailscale0. Docker publishes past ufw, so services bind web UIs
+# to the tailnet IP and publish only these ports on all addresses.
+# sshd inside the VM; Appbox NATs the public port (ansible_port) to it
+appbox_server_ssh_port: 22
+appbox_server_open_ports: []
+# - { port: 50000, proto: any, comment: deluge }
+
+# NFS mounts from the NAS over Tailscale. Mounted at boot, not automounted: a Docker
+# bind of an automount point stays empty (appbox1, 2026-10-21). Bind them into
+# containers with `:rslave` so a later remount propagates. tailscaled reports started before
+# the tailnet path is up, so the mount waits for network-online and retries for 3 minutes
+# (a 30 s timeout failed at boot, 2026-10-21).
+appbox_server_mounts: []
+# - { src: "100.x.y.z:/volume2/Media", path: /media }
+appbox_server_mount_opts: >-
+  nfs4 rw,hard,noatime,_netdev,nofail,x-systemd.requires=tailscaled.service,x-systemd.after=network-online.target,x-systemd.mount-timeout=180
+
+# Compose project, rendered from appbox_server_compose_src (stacks/ in this repo);
+# secrets come from 1Password as .env values.
+appbox_server_compose_dir: /opt/appbox
+appbox_server_compose_src: ""
+appbox_server_compose_env: {}
+# Services to start; empty starts all. Lets services move over one batch at a time.
+appbox_server_compose_services: []
+appbox_server_dirs: []
+# - { path: /srv/appbox/prowlarr, owner: 1000, group: 1000, mode: "0755" }

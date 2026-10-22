@@ -1,0 +1,8 @@
+---
+# NICs with a PCI or virtio address, as named now; each gets a .link file that
+# keeps the name across kernel updates. Empty in containers, so Docker tests
+# skip the task.
+nic_names_pinned: >-
+  {{ ansible_facts.interfaces | sort | select('in', ansible_facts)
+     | map('extract', ansible_facts) | selectattr('pciid', 'defined')
+     | selectattr('type', 'eq', 'ether') | map(attribute='device') | list }}

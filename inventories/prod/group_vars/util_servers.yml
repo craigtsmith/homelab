@@ -1,0 +1,5 @@
+---
+ubuntu_vm_mounts:
+  - { src: "192.168.1.50:/volume2/docker", path: /mnt/docker, fstype: nfs, opts: "rw,sync,hard" }
+  - { src: "192.168.1.50:/volume2/Media", path: /mnt/nas-media, fstype: nfs, opts: "rw,sync,hard" }
+  - { src: "192.168.1.50:/volume2/Paperless", path: /mnt/nas-paperless, fstype: nfs, opts: "rw,sync,hard" }

@@ -1,0 +1,361 @@
+---
+# Proxmox guest definitions, generated from the live API config on 2026-10-14.
+# Create-only: existing guests are never modified. `config` keys are compared
+# against the live guest by the drift report (playbooks/proxmox_guests.yml).
+# Disk and cloud-init drive keys hold the live value; on create they are
+# rebuilt from the template clone (see roles/proxmox_guests).
+# Per-node cloud-init template used when a `build: clone` VM is missing
+proxmox_guests_templates:
+  pve1: 9010
+  pve2: 9020
+  pve3: 9030
+# 24.04 templates, used for rebuilds and test VMs
+proxmox_guests_templates_noble:
+  pve1: 9110
+  pve2: 9120
+  pve3: 9130
+
+# LXC template for `build: lxc` guests and test LXCs (downloaded from the Proxmox
+# appliance index when missing; ceph_fs is shared by all nodes)
+proxmox_guests_lxc_template: ceph_fs:vztmpl/debian-13-standard_13.6-1_amd64.tar.zst
+
+# Throwaway test and restore VMs; destroy.yml refuses anything outside this range
+proxmox_guests_test_range: [800, 899]
+
+# ha: {node: pve1}       - HA resource (state started) plus non-strict node-affinity
+#                          rule <name>-affinity (roles/proxmox_cluster_config, tasks/ha.yml)
+# ha: {state: started}   - HA resource only
+# build: clone    - full clone of the node's template, then config applied
+#        template - built from the Ubuntu cloud image named by `image`
+#        lxc      - Debian LXC from proxmox_guests_lxc_template, root SSH key injected
+#        manual   - the PBS ISO install; not automated yet
+# HA resource-affinity rules (roles/proxmox_cluster_config, tasks/ha.yml); a
+# negative rule keeps its resources on different nodes
+proxmox_cluster_config_ha_resource_affinity:
+  - rule: dns-apart
+    affinity: negative
+    resources: ["ct:118", "ct:119"]
+    comment: dns1 and dns2
+
+proxmox_guests:
+  - vmid: 115
+    name: docker1
+    node: pve1
+    type: qemu
+    build: clone
+    clone_from: 9110
+    ha: {node: pve1}
+    config:
+      agent: "enabled=1"
+      balloon: "16384"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "6"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-115-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.11/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "32768"
+      net0: "virtio=BC:24:11:3A:5D:B2,bridge=vmbr0,queues=5,trunks=100;200"
+      numa: "0"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-115-disk-0,size=64G"
+      scsi1: "local-lvm:vm-115-disk-0,backup=0,cache=writeback,discard=on,iothread=1,size=110G,ssd=1"
+      scsihw: "virtio-scsi-single"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  # docker2 on 24.04 since 2026-10-15. Replaces 102 (docker2-old, stopped, outside the
+  # repo) until 102 is destroyed.
+  - vmid: 113
+    name: docker2
+    node: pve2
+    type: qemu
+    build: clone
+    clone_from: 9120
+    ha: {node: pve2}
+    config:
+      agent: "enabled=1"
+      balloon: "16384"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "6"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-113-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.21/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "32768"
+      net0: "virtio=BC:24:11:4A:FE:B3,bridge=vmbr0,queues=5"
+      numa: "0"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-113-disk-0,size=64G"
+      scsi1: "local-lvm:vm-113-disk-0,backup=0,cache=writeback,discard=on,iothread=1,size=110G,ssd=1"
+      scsihw: "virtio-scsi-single"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  # docker3 on 24.04 since 2026-10-15. Replaces 103 (docker3-old, stopped, outside the
+  # repo) until 103 is destroyed.
+  - vmid: 114
+    name: docker3
+    node: pve3
+    type: qemu
+    build: clone
+    clone_from: 9130
+    ha: {node: pve3}
+    config:
+      agent: "enabled=1"
+      balloon: "16384"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "6"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-114-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.31/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "32768"
+      net0: "virtio=BC:24:11:8F:3E:3C,bridge=vmbr0,queues=5"
+      numa: "0"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-114-disk-0,size=64G"
+      scsi1: "local-lvm:vm-114-disk-0,backup=0,cache=writeback,discard=on,iothread=1,size=110G,ssd=1"
+      scsihw: "virtio-scsi-single"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  - vmid: 112
+    name: tailscale1
+    node: pve2
+    type: qemu
+    build: clone
+    clone_from: 9120
+    ha: {node: pve2}
+    config:
+      agent: "enabled=1"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "2"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-112-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.32/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "2048"
+      net0: "virtio=BC:24:11:49:56:40,bridge=vmbr0,queues=2"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-112-disk-0,size=32G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  # db1 on 24.04 since 2026-10-16. Replaces 108 (db1-old, stopped, outside the repo)
+  # until 108 is destroyed. On pve2: the most even memory split across the nodes.
+  - vmid: 116
+    name: db1
+    node: pve2
+    type: qemu
+    build: clone
+    clone_from: 9120
+    ha: {node: pve2}
+    config:
+      agent: "enabled=1"
+      balloon: "8192"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "6"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-116-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.22/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "12288"
+      net0: "virtio=BC:24:11:E9:F9:5D,bridge=vmbr0,queues=6"
+      numa: "0"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-116-disk-0,size=32G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  # dns1: AdGuard Home on .53 since 2026-10-16 16:11, with ct100's MAC. Replaces ct100
+  # (adguard, stopped, onboot 0, not in HA, outside the repo) until ct100 is destroyed.
+  - vmid: 118
+    name: dns1
+    node: pve1
+    type: lxc
+    build: lxc
+    ha: {node: pve1}
+    config:
+      arch: "amd64"
+      cores: "1"
+      features: "nesting=1"
+      memory: "512"
+      net0: "name=eth0,bridge=vmbr0,gw=192.168.100.1,hwaddr=7E:AD:DA:F3:2C:93,ip=192.168.100.53/24,type=veth"
+      onboot: "1"
+      ostype: "debian"
+      rootfs: "ceph_rbd:vm-118-disk-0,size=4G"
+      swap: "512"
+      tags: "ansible"
+      unprivileged: "1"
+  # dns2: second AdGuard Home on .54 (8a, 2026-10-20), same config as dns1. Kept on
+  # another node than dns1 by the HA rule dns-apart.
+  - vmid: 119
+    name: dns2
+    node: pve2
+    type: lxc
+    build: lxc
+    ha: {node: pve2}
+    config:
+      arch: "amd64"
+      cores: "1"
+      features: "nesting=1"
+      memory: "512"
+      net0: "name=eth0,bridge=vmbr0,gw=192.168.100.1,hwaddr=BC:24:11:87:A1:1A,ip=192.168.100.54/24,type=veth"
+      onboot: "1"
+      ostype: "debian"
+      rootfs: "ceph_rbd:vm-119-disk-0,size=4G"
+      swap: "512"
+      tags: "ansible"
+      unprivileged: "1"
+  # proxy1: nginx reverse proxy, serves *.<domain> since 2026-10-16. Replaces ct104
+  # (nginxproxymanager, stopped, onboot 0, not in HA, outside the repo) until it is
+  # destroyed. On pve3, the node with the least committed memory.
+  - vmid: 117
+    name: proxy1
+    node: pve3
+    type: lxc
+    build: lxc
+    ha: {node: pve3}
+    config:
+      arch: "amd64"
+      cores: "2"
+      features: "nesting=1"
+      memory: "1024"
+      net0: "name=eth0,bridge=vmbr0,gw=192.168.100.1,hwaddr=BC:24:11:30:6C:23,ip=192.168.100.27/24,type=veth"
+      onboot: "1"
+      ostype: "debian"
+      rootfs: "ceph_rbd:vm-117-disk-0,size=4G"
+      swap: "512"
+      tags: "ansible"
+      unprivileged: "1"
+  # util1 on 24.04, rebuilt 2026-10-14. Replaced 109,
+  # which is kept stopped (util1-old) until it is destroyed.
+  - vmid: 111
+    name: util1
+    node: pve3
+    type: qemu
+    build: clone
+    clone_from: 9130
+    ha: {node: pve3}
+    config:
+      agent: "enabled=1"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "6"
+      cpu: "host"
+      ide2: "ceph_rbd:vm-111-cloudinit,media=cdrom"
+      ipconfig0: "ip=192.168.100.12/24,gw=192.168.100.1,ip6=dhcp"
+      machine: "q35"
+      memory: "8192"
+      net0: "virtio=BC:24:11:B6:14:5F,bridge=vmbr0,queues=5"
+      onboot: "1"
+      scsi0: "ceph_rbd:vm-111-disk-0,size=32G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      sockets: "1"
+      vga: "serial0"
+  - vmid: 900
+    name: pbs
+    node: pve1
+    type: qemu
+    build: manual
+    ha: {state: started}
+    config:
+      # no fs-freeze: pbs backs itself up and a frozen pbs cannot take the backup
+      agent: "1,freeze-fs=0"
+      balloon: "12288"
+      boot: "order=scsi0;ide2;net0"
+      cores: "6"
+      cpu: "x86-64-v2-AES"
+      ide2: "synnas01:iso/proxmox-backup-server_4.0-1.iso,media=cdrom,size=1310358K"
+      memory: "16384"
+      net0: "virtio=BC:24:11:1F:4C:82,bridge=vmbr0,firewall=1"
+      numa: "0"
+      onboot: "1"
+      ostype: "l26"
+      scsi0: "ceph_rbd:vm-900-disk-0,iothread=1,size=32G"
+      scsihw: "virtio-scsi-single"
+      sockets: "1"
+  - vmid: 9110
+    name: template-ubuntu-noble
+    node: pve1
+    type: qemu
+    build: template
+    image: noble
+    template: true
+    config:
+      agent: "enabled=1"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "2"
+      cpu: "host"
+      ide2: "local-lvm:vm-9110-cloudinit,media=cdrom"
+      ipconfig0: "ip=dhcp,ip6=dhcp"
+      machine: "q35"
+      memory: "2048"
+      net0: "virtio=BC:24:11:F6:38:70,bridge=vmbr0"
+      scsi0: "local-lvm:base-9110-disk-0,size=20G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      vga: "serial0"
+  - vmid: 9120
+    name: template-ubuntu-noble
+    node: pve2
+    type: qemu
+    build: template
+    image: noble
+    template: true
+    config:
+      agent: "enabled=1"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "2"
+      cpu: "host"
+      ide2: "local-lvm:vm-9120-cloudinit,media=cdrom"
+      ipconfig0: "ip=dhcp,ip6=dhcp"
+      machine: "q35"
+      memory: "2048"
+      net0: "virtio=BC:24:11:D7:BC:23,bridge=vmbr0"
+      scsi0: "local-lvm:base-9120-disk-0,size=20G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      vga: "serial0"
+  - vmid: 9130
+    name: template-ubuntu-noble
+    node: pve3
+    type: qemu
+    build: template
+    image: noble
+    template: true
+    config:
+      agent: "enabled=1"
+      boot: "c"
+      bootdisk: "scsi0"
+      cicustom: "user=ceph_fs:snippets/user-noble.yml"
+      cores: "2"
+      cpu: "host"
+      ide2: "local-lvm:vm-9130-cloudinit,media=cdrom"
+      ipconfig0: "ip=dhcp,ip6=dhcp"
+      machine: "q35"
+      memory: "2048"
+      net0: "virtio=BC:24:11:08:F8:F4,bridge=vmbr0"
+      scsi0: "local-lvm:base-9130-disk-0,size=20G"
+      scsihw: "virtio-scsi-pci"
+      serial0: "socket"
+      vga: "serial0"

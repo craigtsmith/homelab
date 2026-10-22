@@ -1,0 +1,4 @@
+---
+- name: Add SSH Key
+  ansible.builtin.import_tasks: authorized-key.yml
+  when: common_authorized_key | bool

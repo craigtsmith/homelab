@@ -1,0 +1,47 @@
+---
+# Before a Ceph major upgrade (playbooks/ceph_upgrade.yml), once: every daemon
+# runs patch_ceph_major_from, the cluster is healthy, every node runs PVE 9.2+.
+- name: Read Ceph daemon versions
+  ansible.builtin.command: ceph versions -f json
+  register: patch_ceph_versions
+  changed_when: false
+  check_mode: false
+
+- name: Read pve-manager on every node
+  ansible.builtin.command: dpkg-query -W -f '${Version}' pve-manager
+  delegate_to: "{{ item }}"
+  register: patch_pve_manager
+  changed_when: false
+  check_mode: false
+  loop: "{{ groups['proxmox_nodes'] }}"
+
+- name: Check the starting point
+  ansible.builtin.assert:
+    that:
+      - (patch_ceph_versions.stdout | from_json).overall.keys() | reject('search', ' ' ~ patch_ceph_major_from ~ ' ') | list | length == 0
+      - patch_pve_manager.results | map(attribute='stdout') | select('version', '9.2', '<') | list | length == 0
+    fail_msg: >-
+      Ceph {{ (patch_ceph_versions.stdout | from_json).overall.keys() | list }} (expected only {{ patch_ceph_major_from }}),
+      pve-manager {{ patch_pve_manager.results | map(attribute='stdout') | list }} (needs 9.2+)
+    quiet: true
+
+- name: Check Ceph is healthy
+  ansible.builtin.include_tasks: ceph_health.yml
+  vars:
+    patch_ceph_retries: 1
+
+- name: Read enabled mgr modules
+  ansible.builtin.command: ceph mgr module ls -f json
+  register: patch_ceph_modules
+  changed_when: false
+  check_mode: false
+
+# Tentacle removed restful and zabbix; an enabled removed module raises a health error
+- name: Disable mgr modules the new release removed
+  ansible.builtin.command: ceph mgr module disable {{ item }}
+  loop: "{{ patch_ceph_major_disable_modules | intersect((patch_ceph_modules.stdout | from_json).enabled_modules) }}"
+  changed_when: true
+
+- name: Set Ceph noout
+  ansible.builtin.command: ceph osd set noout
+  changed_when: true

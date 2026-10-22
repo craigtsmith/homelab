@@ -1,0 +1,45 @@
+---
+# SSH is allowed before ufw is enabled, so enabling cannot cut the session.
+- name: Allow SSH
+  community.general.ufw:
+    rule: allow
+    port: "{{ appbox_server_ssh_port | string }}"
+    proto: tcp
+    comment: ssh
+
+- name: Allow everything on the tailnet interface
+  community.general.ufw:
+    rule: allow
+    direction: in
+    interface: tailscale0
+    comment: tailnet
+
+- name: Allow Tailscale direct connections
+  community.general.ufw:
+    rule: allow
+    port: "41641"
+    proto: udp
+    comment: tailscale
+
+- name: Allow P2P listen ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto | default('any') }}"
+    comment: "{{ item.comment }}"
+  loop: "{{ appbox_server_open_ports }}"
+  loop_control:
+    label: "{{ item.comment }}"
+
+- name: Deny other inbound traffic and enable ufw
+  community.general.ufw:
+    state: enabled
+    direction: incoming
+    policy: deny
+  async: 60
+  poll: 5
+
+# Enabling ufw dropped the open Ansible SSH session and hung the play (appbox1,
+# 2026-10-21); reconnect. Unconditional: reset_connection ignores `when`.
+- name: Drop the SSH connection that enabling ufw may strand
+  ansible.builtin.meta: reset_connection

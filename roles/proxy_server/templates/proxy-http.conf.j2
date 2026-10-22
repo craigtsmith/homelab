@@ -1,0 +1,39 @@
+# {{ ansible_managed }}
+# http-level settings from NPM's nginx.conf that Debian's nginx.conf does not set
+keepalive_timeout             90s;
+proxy_connect_timeout         90s;
+proxy_send_timeout            90s;
+proxy_read_timeout            90s;
+proxy_ignore_client_abort     off;
+client_max_body_size          2000m;
+server_names_hash_bucket_size 1024;
+proxy_http_version            1.1;
+proxy_set_header              X-Forwarded-Scheme $scheme;
+proxy_set_header              X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header              Accept-Encoding "";
+proxy_cache                   off;
+proxy_cache_path              /var/lib/nginx/proxy-public levels=1:2 keys_zone=public-cache:30m max_size=192m;
+
+log_format proxy '[$time_local] $upstream_cache_status $upstream_status $status - $request_method $scheme $host "$request_uri" [Client $remote_addr] [Length $body_bytes_sent] [Gzip $gzip_ratio] [Sent-to $server] "$http_user_agent" "$http_referer"';
+
+{% for net in proxy_server_real_ip_from %}
+set_real_ip_from {{ net }};
+{% endfor %}
+real_ip_header X-Real-IP;
+real_ip_recursive on;
+
+# Unknown names: 404 on http, no TLS handshake on https
+server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  server_name _;
+  access_log /var/log/nginx/default-host_access.log combined;
+  return 404;
+}
+
+server {
+  listen 443 ssl default_server;
+  listen [::]:443 ssl default_server;
+  server_name _;
+  ssl_reject_handshake on;
+}

@@ -1,0 +1,10 @@
+---
+- name: Pin NIC names to their MACs (read live, so new kernels keep the names)
+  ansible.builtin.template:
+    src: nic.link.j2
+    dest: /etc/systemd/network/10-{{ item }}.link
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ nic_names_pinned }}"
+  notify: Update initramfs for NIC names

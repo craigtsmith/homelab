@@ -1,0 +1,55 @@
+---
+# Promote one live file into the repo file that deploys it (drift handling).
+# Take both paths from the role's --check --diff output:
+#   --- before: <promote_dest>      (live file on the host)
+#   +++ after: <promote_src>        (repo file)
+#
+#   uv run ansible-playbook playbooks/promote.yml --limit pve1 \
+#     -e promote_dest=/etc/chrony/chrony.conf -e promote_src=roles/proxmox_node/files/chrony.conf
+#
+# Only files under roles/*/files are promoted; templates (.j2) are edited by
+# hand. A file shared by several hosts changes for all of them. Review with
+# git diff. Writes only to the repo.
+- name: Promote a live file into the repo
+  hosts: all
+  gather_facts: false
+  vars:
+    promote_repo: "{{ playbook_dir | dirname }}"
+    promote_path: "{{ promote_src if promote_src is abs else promote_repo ~ '/' ~ promote_src }}"
+  tasks:
+    - name: Check the request
+      ansible.builtin.assert:
+        that:
+          - ansible_play_hosts_all | length == 1
+          - promote_src is defined and promote_dest is defined
+          - (promote_path | realpath) is match(promote_repo ~ '/roles/[^/]+/files/')
+          - not promote_src.endswith('.j2')
+        fail_msg: >-
+          Use --limit with one host, and set promote_dest (live path) and promote_src (a file
+          under roles/*/files; templates are edited by hand)
+        quiet: true
+
+    - name: Stat the repo file
+      ansible.builtin.stat:
+        path: "{{ promote_path }}"
+      register: promote_local
+      delegate_to: localhost
+
+    - name: Refuse a repo file that does not exist
+      ansible.builtin.assert:
+        that: promote_local.stat.exists
+        fail_msg: "{{ promote_src }} is not in the repo"
+        quiet: true
+
+    - name: Read the live file
+      ansible.builtin.slurp:
+        src: "{{ promote_dest }}"
+      register: promote_live
+      become: "{{ ansible_user | default('root') != 'root' }}"
+
+    - name: Write the live content into the repo
+      ansible.builtin.copy:
+        content: "{{ promote_live.content | b64decode }}"
+        dest: "{{ promote_path }}"
+        mode: "{{ promote_local.stat.mode }}"
+      delegate_to: localhost

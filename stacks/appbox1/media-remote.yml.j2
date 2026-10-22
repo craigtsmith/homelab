@@ -1,0 +1,178 @@
+# media-remote: the media services on appbox1. Web UIs bind to the tailnet IP only; P2P ports on all addresses.
+# Rendered by roles/appbox_server (compose.yml). Secrets come from .env.
+name: media-remote
+
+x-tz: &tz
+  TZ: Europe/Amsterdam
+
+# *.{{ domain }} is not in public DNS; proxy1 is reached through the tailnet route
+x-hosts: &hosts
+  extra_hosts:
+    - "sonarr.{{ domain }}:192.168.100.27"
+    - "radarr.{{ domain }}:192.168.100.27"
+    - "lidarr.{{ domain }}:192.168.100.27"
+    - "prowlarr.{{ domain }}:192.168.100.27"
+    - "nzb.{{ domain }}:192.168.100.27"
+    - "deluge.{{ domain }}:192.168.100.27"
+    - "navidrome.{{ domain }}:192.168.100.27"
+    - "slskd.{{ domain }}:192.168.100.27"
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      POSTGRES_USER: prowlarr
+      POSTGRES_PASSWORD: ${PROWLARR_PG_PASSWORD}
+      POSTGRES_DB: prowlarr-main
+    volumes:
+      - /srv/appbox/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prowlarr"]
+      interval: 10s
+      retries: 5
+
+  prowlarr:
+    <<: *hosts
+    image: lscr.io/linuxserver/prowlarr:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+    volumes:
+      - /srv/appbox/prowlarr:/config
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:9696:9696"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  byparr:
+    image: ghcr.io/thephaseless/byparr:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PORT: "8191"
+      LOG_LEVEL: info
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:8191:8191"
+
+  sabnzbd:
+    <<: *hosts
+    image: lscr.io/linuxserver/sabnzbd:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PUID: "911"
+      PGID: "911"
+      UMASK: "002"
+    volumes:
+      - /srv/appbox/sabnzbd/config:/config
+      - /srv/appbox/sabnzbd/incomplete:/incomplete
+      - /media:/media:rslave
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:8585:8080"
+
+  slskd:
+    <<: *hosts
+    image: slskd/slskd:latest
+    restart: unless-stopped
+    user: "911:911"
+    environment:
+      <<: *tz
+      SLSKD_UMASK: "002"
+      SLSKD_REMOTE_CONFIGURATION: "true"
+      SLSKD_DOWNLOADS_DIR: /media/downloads/slskd/complete
+      SLSKD_INCOMPLETE_DIR: /srv/incomplete
+      SLSKD_SHARED_DIR: /media/Music
+      SLSKD_SLSK_LISTEN_PORT: "11159"
+    volumes:
+      - /srv/appbox/slskd:/app
+      - /srv/appbox/slskd-incomplete:/srv/incomplete
+      - /media:/media:rslave
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:5030:5030"
+      - "11159:11159"
+
+  aurral:
+    <<: *hosts
+    image: ghcr.io/lklynet/aurral:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      TRUST_PROXY: "true"
+      FILE_BROWSE_ROOTS: /media,/config
+      DOWNLOAD_FOLDER: /media/downloads/aurral
+    volumes:
+      - /srv/appbox/aurral:/config
+      - /media:/media:rslave
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:3005:3001"
+
+  # Data copied from the appbox Deluge app (deleted 2026-10-21); same paths inside
+  deluge:
+    <<: *hosts
+    image: lscr.io/linuxserver/deluge:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "002"
+      DELUGE_LOGLEVEL: error
+    volumes:
+      - /srv/appbox/deluge/torrents/config/deluge:/config
+      - /srv/appbox/deluge/torrents:/torrents
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:8112:8112"
+      - "11158:11158"
+      - "11158:11158/udp"
+
+  # State copied from the appbox Resilio app (same device identity and folders), so the
+  # swarm's sync service sees the same peer. Its database holds absolute paths, so the
+  # storage and the synced folder keep their app paths inside the container.
+  resilio:
+    image: linuxserver/resilio-sync:3.1.2.1076-1-ls247
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "002"
+    volumes:
+      - /srv/appbox/resilio/config:/config
+      - /srv/appbox/resilio/rsldata:/home/appbox/rsldata
+{# The old Appbox app's path, named after the account host (<account>.appboxes.co) #}
+      - /srv/appbox/deluge/torrents/completed:/APPBOX_DATA/apps/deluge.{{ appbox1_ansible_host.split('.', 1)[1] }}/torrents/completed
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:8888:8888"
+      - "11160:11160"
+      - "11160:11160/udp"
+
+  dispatcharr:
+    <<: *hosts
+    image: ghcr.io/dispatcharr/dispatcharr:latest
+    restart: unless-stopped
+    environment:
+      <<: *tz
+      DISPATCHARR_ENV: aio
+      DISPATCHARR_LOG_LEVEL: info
+      UWSGI_NICE_LEVEL: "-5"
+      CELERY_NICE_LEVEL: "5"
+    cap_add:
+      - SYS_NICE
+    volumes:
+      - /srv/appbox/dispatcharr/data:/data
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:9191:9191"
+
+  # Portainer environment "appbox1" (Docker Standalone, agent). Same digest as the
+  # swarm agent; tailnet only. The agent serves the first Portainer that connects.
+  portainer-agent:
+    image: portainer/agent:sts@sha256:d63bfe57a106070fa5c0e73de0758f33aea018ed3cb6c8610c6663a4ac3a82ba
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+    ports:
+      - "{{ appbox_server_tailnet_ip }}:9001:9001"

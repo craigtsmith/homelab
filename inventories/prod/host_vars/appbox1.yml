@@ -1,0 +1,35 @@
+---
+ansible_host: "{{ appbox1_ansible_host }}"
+ansible_port: "{{ appbox1_ansible_port }}"
+ansible_user: appbox
+
+# Appbox forwards these public TCP ports to the VM unchanged (11158-11180+)
+appbox_server_open_ports:
+  - { port: 11158, proto: any, comment: deluge }
+  - { port: 11159, proto: tcp, comment: slskd }
+  - { port: 11160, proto: any, comment: resilio }
+
+# Stack media-remote (stacks/appbox1/)
+appbox_server_compose_src: "{{ playbook_dir }}/../stacks/appbox1/media-remote.yml.j2"
+appbox_server_compose_dir: /opt/media-remote
+appbox_server_compose_env:
+  PROWLARR_PG_PASSWORD: "{{ lookup('community.general.onepassword', 'appbox-prowlarr-pg', field='password', vault=op_vault) }}"
+appbox_server_compose_services: []
+appbox_server_dirs:
+  - { path: /srv/appbox, mode: "0755" }
+  - { path: /srv/appbox/postgres, owner: "999", group: "999", mode: "0700" }
+  - { path: /srv/appbox/prowlarr, owner: "911", group: "911" }
+  - { path: /srv/appbox/dispatcharr/data, owner: "1000", group: "1000" }
+  - { path: /srv/appbox/sabnzbd/config, owner: "911", group: "911" }
+  - { path: /srv/appbox/sabnzbd/incomplete, owner: "911", group: "911" }
+  - { path: /srv/appbox/slskd, owner: "911", group: "911" }
+  - { path: /srv/appbox/slskd-incomplete, owner: "911", group: "911" }
+  - { path: /srv/appbox/aurral, owner: "1001", group: "1001" }
+  - { path: /srv/appbox/deluge, owner: "1000", group: "1000" }
+  - { path: /srv/appbox/resilio, owner: "1000", group: "1000", mode: "0700" }
+  - { path: /srv/appbox/resilio/config, owner: "1000", group: "1000", mode: "0700" }
+  - { path: /srv/appbox/resilio/rsldata, owner: "1000", group: "1000", mode: "0700" }
+
+# NAS (nassie) over Tailscale
+appbox_server_mounts:
+  - { src: "{{ nas_tailnet_ip }}:/volume2/Media", path: /media }

@@ -1,0 +1,35 @@
+---
+- name: Add the Ceph release key
+  ansible.builtin.get_url:
+    url: "{{ ceph_client_keyring_url }}"
+    dest: /usr/share/keyrings/ceph-release.gpg
+    checksum: "{{ ceph_client_keyring_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the Ceph repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/ceph.sources
+    content: |
+      Types: deb
+      URIs: {{ ceph_client_repo_url }}
+      Suites: {{ ansible_distribution_release }}
+      Components: main
+      Signed-By: /usr/share/keyrings/ceph-release.gpg
+    owner: root
+    group: root
+    mode: "0644"
+  register: ceph_client_repo
+
+# Ceph's packages win over Ubuntu's for every Ceph library, not only when newer
+- name: Prefer the Ceph repository
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/ceph
+    content: |
+      Package: *
+      Pin: origin download.ceph.com
+      Pin-Priority: 600
+    owner: root
+    group: root
+    mode: "0644"

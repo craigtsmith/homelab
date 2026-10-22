@@ -1,0 +1,129 @@
+---
+- name: Select stacks
+  ansible.builtin.set_fact:
+    portainer_stacks_selected: >-
+      {{ portainer_stacks if portainer_stacks_only | length == 0
+         else portainer_stacks | selectattr('name', 'in', portainer_stacks_only) | list }}
+
+# Read-only; the API key and stack env stay out of the output
+- name: Read stacks from Portainer
+  ansible.builtin.uri:
+    url: "{{ portainer_stacks_url }}/stacks"
+    headers:
+      X-API-Key: "{{ portainer_stacks_api_key }}"
+  register: portainer_stacks_list
+  check_mode: false
+  no_log: true
+
+- name: Map stacks by name
+  ansible.builtin.set_fact:
+    portainer_stacks_live: "{{ portainer_stacks_list.json | items2dict(key_name='Name', value_name='Id') }}"
+    portainer_stacks_live_env: >-
+      {{ dict(portainer_stacks_list.json | map(attribute='Name')
+              | zip(portainer_stacks_list.json | map(attribute='Env', default=[]) | map('default', [], true)
+                    | map('items2dict', key_name='name', value_name='value'))) }}
+  no_log: true
+
+- name: Fail on stacks missing from Portainer
+  ansible.builtin.assert:
+    that: item.name in portainer_stacks_live
+    fail_msg: Stack {{ item.name }} is not in Portainer; create it by hand first
+    quiet: true
+  loop: "{{ portainer_stacks_selected }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Read stack files from Portainer
+  ansible.builtin.uri:
+    url: "{{ portainer_stacks_url }}/stacks/{{ portainer_stacks_live[item.name] }}/file"
+    headers:
+      X-API-Key: "{{ portainer_stacks_api_key }}"
+  loop: "{{ portainer_stacks_selected }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: portainer_stacks_files
+  check_mode: false
+  no_log: true
+
+- name: Create a scratch directory for the diffs
+  ansible.builtin.tempfile:
+    state: directory
+    suffix: .portainer-stacks
+  register: portainer_stacks_tmp
+  check_mode: false
+  changed_when: false
+
+# Values of the declared env are masked in the live copy, so a diff of an
+# inline secret prints <NAME> instead
+- name: Write Portainer's copies, env values masked
+  ansible.builtin.copy:
+    content: "{{ item.json.StackFileContent | portainer_stacks_mask(item.item.env | default({})) }}"
+    dest: "{{ portainer_stacks_tmp.path }}/{{ item.item.name }}.yml"
+    mode: "0600"
+  loop: "{{ portainer_stacks_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  check_mode: false
+  changed_when: false
+  diff: false
+  no_log: true
+
+- name: Compare stack files
+  ansible.builtin.template:
+    src: "{{ portainer_stacks_dir }}/{{ item.name }}.yml.j2"
+    dest: "{{ portainer_stacks_tmp.path }}/{{ item.name }}.yml"
+    mode: "0600"
+  loop: "{{ portainer_stacks_selected }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: portainer_stacks_compare
+  check_mode: true
+
+- name: Compare stack env
+  ansible.builtin.set_fact:
+    portainer_stacks_env_drift: "{{ portainer_stacks_env_drift | default({}) | combine({item.name: portainer_stacks_env_names}) }}"
+  vars:
+    portainer_stacks_env_live: "{{ portainer_stacks_live_env[item.name] | default({}) }}"
+    portainer_stacks_env_repo: "{{ item.env | default({}) }}"
+    # name=sha256(value) on each side; names in only one side's list differ
+    portainer_stacks_env_names: >-
+      {{ (portainer_stacks_env_repo | portainer_stacks_env_pairs)
+         | symmetric_difference(portainer_stacks_env_live | portainer_stacks_env_pairs)
+         | map('regex_replace', '=.*$', '') | unique | sort }}
+  loop: "{{ portainer_stacks_selected }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Stack env drift report
+  ansible.builtin.debug:
+    msg: >-
+      {{ portainer_stacks_env_drift | dict2items | selectattr('value') | items2dict
+         | default('No drift: stack env matches the repo', true) }}
+
+- name: Remove the scratch directory
+  ansible.builtin.file:
+    path: "{{ portainer_stacks_tmp.path }}"
+    state: absent
+  check_mode: false
+  changed_when: false
+
+- name: Update stacks
+  ansible.builtin.uri:
+    url: "{{ portainer_stacks_url }}/stacks/{{ portainer_stacks_live[item.item.name] }}?endpointId={{ portainer_stacks_endpoint_id }}"
+    method: PUT
+    headers:
+      X-API-Key: "{{ portainer_stacks_api_key }}"
+    body_format: json
+    body:
+      stackFileContent: "{{ lookup('ansible.builtin.template', portainer_stacks_dir ~ '/' ~ item.item.name ~ '.yml.j2') }}"
+      env: "{{ item.item.env | default({}) | dict2items(key_name='name', value_name='value') }}"
+      prune: true
+      pullImage: false
+    timeout: 300
+  loop: "{{ portainer_stacks_compare.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  when: item.changed or portainer_stacks_env_drift[item.item.name] | length > 0
+  changed_when: true
+  no_log: true

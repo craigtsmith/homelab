@@ -1,0 +1,14 @@
+---
+# Point ceph.sources at the new release and dist-upgrade this node. Nothing
+# restarts here; the old daemons run until the restart stages.
+- name: Point ceph.sources at the new release
+  ansible.builtin.include_role:
+    name: proxmox_node
+    tasks_from: ceph_repo.yml
+  vars:
+    proxmox_node_ceph_repo: "{{ patch_ceph_major_repo }}"
+
+- name: Upgrade packages
+  ansible.builtin.include_tasks: packages.yml
+  vars:
+    patch_majors: "{{ patch_ceph_major_majors }}"

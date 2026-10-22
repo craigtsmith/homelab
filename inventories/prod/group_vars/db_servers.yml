@@ -1,0 +1,8 @@
+---
+db_user:
+  name: db1
+  mysql_password: "{{ lookup('community.general.onepassword', 'db1-mysql', field='password', vault=op_vault) }}"
+  postgres_password: "{{ lookup('community.general.onepassword', 'db1-postgres', field='password', vault=op_vault) }}"
+# db1 mounts the backup share only (no docker, media or paperless shares)
+ubuntu_vm_mounts:
+  - { src: "192.168.1.50:/volume2/lab-backup", path: /mnt/lab-backup, fstype: nfs, opts: "rw,sync,hard" }

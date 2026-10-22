@@ -1,0 +1,34 @@
+---
+db_server_user: "{{ db_user.name }}"
+db_server_python_packages:
+  - python3-psycopg2
+  - python3-pymysql
+
+# PostgreSQL from pgdg (needs ubuntu_vm_pgdg_repo)
+db_server_postgres_version: 17
+db_server_postgres_conf_dir: /etc/postgresql/{{ db_server_postgres_version }}/main
+db_server_postgres_hba: "{{ db_server_postgres_conf_dir }}/pg_hba.conf"
+db_server_postgres_settings:
+  listen_addresses: "'*'"
+  max_connections: 200
+  shared_buffers: 2GB
+  effective_cache_size: 5GB
+
+# MySQL from repo.mysql.com; the noble archive only has 8.0
+db_server_mysql_series: mysql-8.4-lts
+db_server_mysql_key_url: https://repo.mysql.com/RPM-GPG-KEY-mysql-2025
+
+# Valkey from Percona; the noble archive only has 7.2
+db_server_valkey_repo: valkey-80
+db_server_valkey_conf: /etc/valkey/valkey.conf
+# Same exposure as the redislabs Redis it replaces (craig, 2026-10-16)
+db_server_valkey_settings:
+  bind: 0.0.0.0 ::1
+  protected-mode: "no"
+
+# Hourly dumps: latest copy in /var/backups (in the nightly PBS backup) and
+# on the NAS in hourly/<HH> and daily/<weekday> slots, overwritten in turn
+db_server_backup_dir: /var/backups
+db_server_backup_nas_mount: /mnt/lab-backup
+db_server_backup_nas_path: db-backups/{{ inventory_hostname }}
+db_server_backup_on_calendar: hourly

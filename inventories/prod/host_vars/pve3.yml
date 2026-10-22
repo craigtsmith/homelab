@@ -1,0 +1,6 @@
+---
+ansible_host: 192.168.100.30
+hostname: pve3
+cluster_role: node
+proxmox_node_ceph_address: 192.168.5.30
+proxmox_node_ansible_user_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILU4yc7g9oueBWjvI/GqKzdKyw97hvBC8a8v6eyp8wPI ansible user SSH key"

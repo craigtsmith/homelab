@@ -1,0 +1,30 @@
+---
+- name: Install NFS client
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+  when: ubuntu_vm_mounts | selectattr('fstype', 'match', 'nfs') | list | length > 0
+
+# Create-only: never touches a device that already has a filesystem
+- name: Create filesystems on local disks
+  community.general.filesystem:
+    dev: "{{ item.src }}"
+    fstype: "{{ item.fstype }}"
+  loop: "{{ ubuntu_vm_mounts | selectattr('mkfs', 'defined') | selectattr('mkfs') | list }}"
+  loop_control:
+    label: "{{ item.src }}"
+
+# An fstab change on a mounted path only rewrites fstab: state mounted would
+# remount it, so already mounted paths use state present.
+- name: Mount filesystems
+  ansible.posix.mount:
+    src: "{{ item.src }}"
+    path: "{{ item.path }}"
+    fstype: "{{ item.fstype }}"
+    opts: "{{ item.opts }}"
+    dump: "0"
+    passno: "{{ item.passno | default('0') }}"
+    state: "{{ 'present' if item.path in (ansible_mounts | map(attribute='mount')) else 'mounted' }}"
+  loop: "{{ ubuntu_vm_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"

@@ -1,0 +1,66 @@
+---
+# Once, after every OSD: restart the MDS daemons the Ceph way for one active
+# rank (max_mds 1, no standby-replay; checked): stop the standbys, restart the
+# active one, start the standbys. CephFS clients pause while the active MDS
+# restarts.
+- name: Read the file system
+  ansible.builtin.command: ceph fs get {{ patch_ceph_fs }} -f json
+  register: patch_fs
+  changed_when: false
+  check_mode: false
+
+- name: Check one active rank and no standby-replay
+  ansible.builtin.assert:
+    that:
+      - (patch_fs.stdout | from_json).mdsmap.max_mds == 1
+      - not ((patch_fs.stdout | from_json).mdsmap.flags_state.allow_standby_replay | default(false))
+    fail_msg: "Set max_mds 1 and allow_standby_replay false first (Ceph upgrade docs)"
+    quiet: true
+
+- name: Read the MDS daemons
+  ansible.builtin.command: ceph fs status {{ patch_ceph_fs }} -f json
+  register: patch_mds
+  changed_when: false
+  check_mode: false
+
+- name: Pick the active MDS and the standbys
+  ansible.builtin.set_fact:
+    patch_mds_active: "{{ (patch_mds.stdout | from_json).mdsmap | selectattr('state', 'eq', 'active') | map(attribute='name') | first }}"
+    patch_mds_standby: "{{ (patch_mds.stdout | from_json).mdsmap | selectattr('state', 'eq', 'standby') | map(attribute='name') | list }}"
+
+- name: Stop the standby MDS daemons
+  ansible.builtin.systemd_service:
+    name: ceph-mds.target
+    state: stopped
+  delegate_to: "{{ item }}"
+  loop: "{{ patch_mds_standby }}"
+
+- name: Restart the active MDS, {{ patch_mds_active }}
+  ansible.builtin.systemd_service:
+    name: ceph-mds.target
+    state: restarted
+  delegate_to: "{{ patch_mds_active }}"
+
+- name: Wait for an active MDS on the new version
+  ansible.builtin.command: ceph fs status {{ patch_ceph_fs }} -f json
+  register: patch_mds_now
+  changed_when: false
+  until: >-
+    patch_mds_now.rc == 0
+    and (patch_mds_now.stdout | from_json).mdsmap | selectattr('state', 'eq', 'active') | list | length == 1
+    and (patch_mds_now.stdout | from_json).mds_version | map(attribute='version') | select('search', ' ' ~ patch_ceph_major_to ~ ' ') | list | length > 0
+  failed_when: patch_mds_now.rc != 0
+  retries: "{{ patch_wait_retries }}"
+  delay: 10
+  when: not ansible_check_mode
+
+- name: Start the standby MDS daemons
+  ansible.builtin.systemd_service:
+    name: ceph-mds.target
+    state: started
+  delegate_to: "{{ item }}"
+  loop: "{{ patch_mds_standby }}"
+
+- name: Wait for Ceph health
+  ansible.builtin.include_tasks: ceph_health.yml
+  when: not ansible_check_mode

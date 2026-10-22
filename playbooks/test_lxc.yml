@@ -1,0 +1,126 @@
+---
+# Converge roles on a throwaway Debian 13 LXC built from proxmox_guests_lxc_template.
+#
+#   ansible-playbook playbooks/test_lxc.yml -e test_vmid=803 -e test_as=dns1 \
+#     -e '{"test_roles": ["debian_lxc", "dns_server"]}'
+#
+# -e test_as=dns1 converges the LXC as that host: its groups (group_vars) and
+# host_vars apply, except identity and address vars.
+#
+# The LXC gets a DHCP address and is destroyed at the end unless -e test_keep=true.
+# If the VMID exists (a kept test LXC), the roles converge on it again.
+- name: Validate environment for test LXCs
+  import_playbook: common/validate_env.yml
+
+- name: Create test LXC
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_node: pve3
+    test_groups: "{{ hostvars[test_as].group_names if test_as is defined else ['debian_lxcs'] }}"
+    # -e '{"test_config": {...}}' overrides keys, e.g. memory to match a real guest
+    test_lxc_config:
+      rootfs: ceph_rbd:test,size=4G
+      cores: "1"
+      memory: "512"
+      swap: "512"
+      net0: name=eth0,bridge=vmbr0,ip=dhcp,type=veth
+      features: nesting=1
+      unprivileged: "1"
+      onboot: "0"
+      tags: test
+  tasks:
+    - name: Check test_as is an inventory host
+      ansible.builtin.assert:
+        that: test_as in groups['all']
+        fail_msg: "test_as={{ test_as }} is not in the inventory"
+      when: test_as is defined
+
+    - name: Check test VMID is in the test range
+      ansible.builtin.assert:
+        that:
+          - test_vmid is defined
+          - test_vmid | int >= proxmox_guests_test_range[0]
+          - test_vmid | int <= proxmox_guests_test_range[1]
+        fail_msg: "Set -e test_vmid=800..899"
+
+    - name: List cluster guests
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: list.yml
+
+    # A rerun converges the existing test LXC again (second-run changed=0 check)
+    - name: Create test LXC from the Debian template
+      when: test_vmid | int not in proxmox_guests_live_ids
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: lxc.yml
+      vars:
+        guest:
+          vmid: "{{ test_vmid | int }}"
+          name: test-{{ test_vmid }}
+          node: "{{ test_node }}"
+          start: true
+          config: "{{ test_lxc_config | combine(test_config | default({})) }}"
+
+    - name: Wait for the test LXC address
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: lxc_ip.yml
+      vars:
+        proxmox_guests_lxc_node: "{{ test_node }}"
+        proxmox_guests_lxc_vmid: "{{ test_vmid }}"
+
+    - name: Add test LXC to the inventory
+      ansible.builtin.add_host:
+        name: test-{{ test_vmid }}
+        ansible_host: "{{ proxmox_guests_lxc_ip }}"
+        ansible_user: root
+        ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+        groups: "{{ ['test_lxcs'] + test_groups }}"
+        test_node: "{{ test_node }}"
+        test_as: "{{ test_as | default(omit) }}"
+
+- name: Converge roles on the test LXC
+  hosts: test_lxcs
+  gather_facts: false
+  vars:
+    test_roles: [debian_lxc]
+    # never copied from test_as host_vars
+    test_as_skip_vars: [ansible_host, hostname, lxc_name]
+  tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Apply host_vars of {{ test_as | default('no host') }}
+      ansible.builtin.set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: >-
+        {{ (lookup('ansible.builtin.file', hostvars[test_as].inventory_dir ~ '/host_vars/' ~ test_as ~ '.yml')
+            | from_yaml | default({}, true) | dict2items) if test_as is defined else [] }}
+      loop_control:
+        label: "{{ item.key }}"
+      when: item.key not in test_as_skip_vars
+
+    - name: Apply roles
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop: "{{ test_roles }}"
+
+- name: Destroy test LXC
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Destroy test LXC
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: destroy.yml
+      vars:
+        proxmox_guests_destroy_vmid: "{{ test_vmid }}"
+        proxmox_guests_destroy_node: "{{ test_node | default('pve3') }}"
+        proxmox_guests_destroy_type: lxc
+      when: not (test_keep | default(false) | bool)

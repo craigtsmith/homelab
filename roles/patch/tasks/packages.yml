@@ -1,0 +1,109 @@
+---
+# apt dist-upgrade after a dry run: the run stops on removals outside
+# patch_allowed_removals and on a new major of a patch_majors package.
+# Regexes sit in folded scalars: one backslash, '\1' is a backreference.
+- name: Update the package lists
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+
+- name: Simulate the upgrade  # noqa: command-instead-of-module
+  ansible.builtin.command: apt-get -s dist-upgrade
+  register: patch_sim
+  changed_when: false
+  check_mode: false
+
+- name: Read the simulation
+  ansible.builtin.set_fact:
+    patch_sim_summary: >-
+      {{ patch_sim.stdout_lines | select('search', 'upgraded,') | first | default('nothing to do') }}
+    patch_sim_installs: >-
+      {{ patch_sim.stdout_lines | select('match', '^Inst ')
+         | map('regex_replace', '^Inst (\S+) (\[\S+\] )?\((\S+) .*$', '\1 \3') | list }}
+    patch_sim_removals: >-
+      {{ patch_sim.stdout_lines | select('match', '^(Remv|Purg) ')
+         | map('regex_replace', '^\S+ (\S+) .*$', '\1') | list }}
+
+- name: Show the upgrade
+  ansible.builtin.debug:
+    msg:
+      - "{{ patch_sim_summary }}"
+      - "removals: {{ patch_sim_removals | join(' ') }}"
+      - >-
+        watched: {{ patch_sim_installs | select('match', '^(' ~ (patch_majors.keys() | join('|')) ~ ') ')
+        | list if patch_majors else [] }}
+
+- name: Check removals are expected
+  ansible.builtin.assert:
+    that: patch_sim_removals | difference(patch_allowed_removals) | length == 0
+    fail_msg: "dist-upgrade would remove {{ patch_sim_removals | difference(patch_allowed_removals) }}"
+    quiet: true
+
+- name: Check no package moves to a new major
+  ansible.builtin.assert:
+    that: >-
+      patch_sim_installs | select('match', '^' ~ item.key ~ ' ')
+      | reject('match', '^' ~ item.key ~ ' (\d+:)?' ~ item.value ~ '\.') | list | length == 0
+    fail_msg: "{{ item.key }}: the candidate is not major {{ item.value }}"
+    quiet: true
+  loop: "{{ patch_majors | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Upgrade packages
+  ansible.builtin.apt:
+    upgrade: dist
+  register: patch_upgrade
+  when: patch_sim_installs | length > 0 or patch_sim_removals | length > 0
+
+# In check mode the upgrade did not happen, and a purge dry run shows the
+# pre-upgrade picture (purging zfs-dkms before the Proxmox ZFS swap removes
+# zfsutils-linux), so the purge is skipped there.
+- name: Purge leftovers
+  when: patch_purge | length > 0 and not (ansible_check_mode and patch_upgrade is changed)
+  vars:
+    patch_purge_installed: "{{ patch_purge | select('in', ansible_facts.packages | default({})) | list }}"
+  block:
+    - name: Read installed packages
+      ansible.builtin.package_facts:
+
+    - name: Simulate the purge  # noqa: command-instead-of-module
+      ansible.builtin.command: apt-get -s purge {{ patch_purge_installed | join(' ') }}
+      register: patch_purge_sim
+      changed_when: false
+      check_mode: false
+      when: patch_purge_installed | length > 0
+
+    # A backreference in a conditional is read as an escape (\x01); parse here
+    - name: Read the purge simulation
+      ansible.builtin.set_fact:
+        patch_purge_removals: >-
+          {{ patch_purge_sim.stdout_lines | select('match', '^(Remv|Purg) ')
+             | map('regex_replace', '^\S+ (\S+) .*$', '\1') | sort }}
+      when: patch_purge_installed | length > 0
+
+    - name: Check the purge removes nothing else
+      ansible.builtin.assert:
+        that: patch_purge_removals == patch_purge_installed | sort
+        fail_msg: "The purge would remove {{ patch_purge_removals }}"
+        quiet: true
+      when: patch_purge_installed | length > 0
+
+    - name: Purge leftover packages
+      ansible.builtin.apt:
+        name: "{{ patch_purge_installed }}"
+        state: absent
+        purge: true
+      when: patch_purge_installed | length > 0
+
+- name: Simulate autoremove (reported, not run)  # noqa: command-instead-of-module
+  ansible.builtin.command: apt-get -s autoremove
+  register: patch_autoremove
+  changed_when: false
+  check_mode: false
+
+- name: Report autoremove candidates
+  ansible.builtin.debug:
+    msg: >-
+      {{ patch_autoremove.stdout_lines | select('match', '^Remv ')
+         | map('regex_replace', '^Remv (\S+) .*$', '\1') | join(' ') }}

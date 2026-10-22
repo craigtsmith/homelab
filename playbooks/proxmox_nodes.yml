@@ -1,0 +1,10 @@
+---
+- name: Validate environment for Proxmox nodes
+  import_playbook: common/validate_env.yml
+
+- name: Proxmox nodes
+  hosts: proxmox_nodes
+  gather_facts: true
+  serial: 1
+  roles:
+    - role: proxmox_node

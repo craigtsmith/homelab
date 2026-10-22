@@ -1,0 +1,49 @@
+---
+- name: Install Docker
+  ansible.builtin.import_tasks: install-docker.yml
+
+- name: Configure Docker daemon
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Docker
+
+- name: Create bind-mount directories for swarm services
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop: "{{ docker_host_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Install iptables persistence packages
+  ansible.builtin.apt:
+    name:
+      - netfilter-persistent
+      - iptables-persistent
+    state: present
+
+- name: Install jsondiff package for docker_stack
+  ansible.builtin.apt:
+    name: python3-jsondiff
+    state: present
+
+- name: Read Docker Swarm state
+  ansible.builtin.command: docker info --format '{{ "{{" }} .Swarm.LocalNodeState {{ "}}" }}'
+  register: docker_host_swarm_state
+  changed_when: false
+  check_mode: false
+
+- name: Apply manager configuration
+  ansible.builtin.import_tasks: manager.yml
+  when: docker_host_role == 'manager'
+
+- name: Apply worker configuration
+  ansible.builtin.import_tasks: worker.yml
+  when: docker_host_role == 'worker'

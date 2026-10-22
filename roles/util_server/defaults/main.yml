@@ -1,0 +1,9 @@
+---
+# PostgreSQL client major, matching db1 (needs ubuntu_vm_pgdg_repo)
+util_server_postgres_client_version: 17
+util_server_packages:
+  - redis-tools
+  - mysql-client
+  - postgresql-client-{{ util_server_postgres_client_version }}
+  - ffmpeg
+  - unzip

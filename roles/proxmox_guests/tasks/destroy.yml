@@ -1,0 +1,61 @@
+---
+# Destroys a throwaway VM or LXC (proxmox_guests_destroy_type: qemu or lxc).
+# Refuses anything outside the test range.
+- name: Refuse to destroy VMs outside the test range
+  ansible.builtin.assert:
+    that:
+      - proxmox_guests_destroy_vmid | int >= proxmox_guests_test_range[0]
+      - proxmox_guests_destroy_vmid | int <= proxmox_guests_test_range[1]
+    fail_msg: "VMID {{ proxmox_guests_destroy_vmid }} is outside the test range {{ proxmox_guests_test_range }}"
+
+- name: Set the test guest API path
+  ansible.builtin.set_fact:
+    proxmox_guests_destroy_url: >-
+      {{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_destroy_node }}/{{ proxmox_guests_destroy_type | default('qemu') }}/{{ proxmox_guests_destroy_vmid }}
+
+- name: Read test guest status
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_destroy_url }}/status/current"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_destroy_status
+  check_mode: false
+  no_log: true
+
+- name: Stop test VM
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_destroy_url }}/status/stop"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_stop
+  changed_when: true
+  no_log: true
+  # Stopping a stopped LXC is an API error
+  when: proxmox_guests_destroy_status.json.data.status == 'running'
+
+- name: Wait for stop
+  when: proxmox_guests_stop is not skipped
+  ansible.builtin.include_tasks: wait_task.yml
+  vars:
+    proxmox_guests_upid: "{{ proxmox_guests_stop.json.data }}"
+    proxmox_guests_task_node: "{{ proxmox_guests_destroy_node }}"
+
+- name: Destroy test VM and its disks
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_destroy_url }}?purge=1&destroy-unreferenced-disks=1"
+    method: DELETE
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_delete
+  changed_when: true
+  no_log: true
+
+- name: Wait for destroy
+  ansible.builtin.include_tasks: wait_task.yml
+  vars:
+    proxmox_guests_upid: "{{ proxmox_guests_delete.json.data }}"
+    proxmox_guests_task_node: "{{ proxmox_guests_destroy_node }}"

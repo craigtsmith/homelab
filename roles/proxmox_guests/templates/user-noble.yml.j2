@@ -1,0 +1,34 @@
+#cloud-config
+# Ubuntu 24.04 builds. Shared by every VM, so it sets no hostname: the VM boots
+# as `ubuntu` and the ubuntu_vm role sets the real hostname.
+manage_etc_hosts: true
+
+users:
+  - name: serveradmin
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    passwd: "{{ proxmox_guests_cloudinit_passwd }}"
+    ssh_authorized_keys:
+      - "{{ ssh_public_key }}"
+
+package_update: true
+package_upgrade: true
+packages:
+  - ceph-common
+  - qemu-guest-agent
+
+write_files:
+  - path: /etc/ceph/ceph.client.vm_access.keyring
+    permissions: '0600'
+    content: "{{ proxmox_guests_snippet_ceph_key }}"
+
+mounts:
+  - [ "p1.{{ domain }},p2.{{ domain }},p3.{{ domain }}:/",
+      "/mnt/cephfs", "ceph",
+      "name=vm_access,secretfile=/etc/ceph/ceph.client.vm_access.keyring,_netdev,noauto,x-systemd.automount,nofail,noatime",
+      "0", "2" ]
+
+runcmd:
+  - [systemctl, start, qemu-guest-agent]

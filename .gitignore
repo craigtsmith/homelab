@@ -1,0 +1,24 @@
+.ansible/
+.claude/
+.codex/
+.beads/
+
+*.retry
+
+# Python and tool caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.DS_Store
+
+**/private/**
+**/_private/**
+.env
+tmp/**
+.serena/
+
+# Private inventory values; template inventories/prod/group_vars/all/private.yml.example
+inventories/prod/group_vars/all/private.yml

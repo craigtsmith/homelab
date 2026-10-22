@@ -1,0 +1,75 @@
+---
+- name: Clone template for {{ guest.name }}
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/qemu/{{ guest.clone_from | default(proxmox_guests_templates[guest.node]) }}/clone"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    body_format: form-urlencoded
+    body:
+      newid: "{{ guest.vmid }}"
+      name: "{{ guest.name }}"
+      full: 1
+      storage: "{{ guest.config.scsi0.split(':')[0] }}"
+    validate_certs: false
+  register: proxmox_guests_clone
+  changed_when: true
+  no_log: true
+
+- name: Wait for clone to finish
+  ansible.builtin.include_tasks: wait_task.yml
+  vars:
+    proxmox_guests_upid: "{{ proxmox_guests_clone.json.data }}"
+    proxmox_guests_task_node: "{{ guest.node }}"
+
+- name: Replace cloud-init drive with one on the declared storage
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/qemu/{{ guest.vmid }}/config"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    body_format: form-urlencoded
+    body: "{{ item }}"
+    validate_certs: false
+  loop:
+    - { delete: ide2 }
+    - { ide2: "{{ guest.config.ide2.split(':')[0] }}:cloudinit" }
+  changed_when: true
+  no_log: true
+
+- name: Apply declared config (extra disks created at their declared size)
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/qemu/{{ guest.vmid }}/config"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    body_format: form-urlencoded
+    body: "{{ lookup('ansible.builtin.template', 'clone-config.j2') | from_yaml }}"
+    validate_certs: false
+  changed_when: true
+  no_log: true
+
+- name: Resize scsi0 to declared size
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/qemu/{{ guest.vmid }}/resize"
+    method: PUT
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    body_format: form-urlencoded
+    body:
+      disk: scsi0
+      size: "{{ guest.config.scsi0 | regex_search('size=[^,]+') | regex_replace('^size=', '') }}"
+    validate_certs: false
+  changed_when: true
+  no_log: true
+
+- name: Start the VM (onboot guests, or guest.start)
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ guest.node }}/qemu/{{ guest.vmid }}/status/start"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  when: guest.start | default(guest.config.onboot | default('0') == '1') | bool
+  changed_when: true
+  no_log: true

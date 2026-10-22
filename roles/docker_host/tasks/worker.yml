@@ -1,0 +1,22 @@
+---
+# The token is read on the manager here, so a worker can be converged with --limit
+- name: Read Swarm worker join token from the manager
+  ansible.builtin.command: docker swarm join-token -q worker
+  delegate_to: "{{ docker_host_manager }}"
+  register: docker_host_join_token
+  changed_when: false
+  check_mode: false
+  no_log: true
+  when:
+    - docker_host_join_swarm | bool
+    - docker_host_swarm_state.stdout != 'active'
+
+- name: Join Docker Swarm
+  ansible.builtin.command: >-
+    docker swarm join --token {{ docker_host_join_token.stdout }}
+    {{ hostvars[docker_host_manager].ansible_host }}:2377
+  when:
+    - docker_host_join_swarm | bool
+    - docker_host_swarm_state.stdout != 'active'
+  changed_when: true
+  no_log: true

@@ -1,0 +1,98 @@
+---
+- name: Install nginx and certbot
+  ansible.builtin.apt:
+    name: "{{ proxy_server_packages }}"
+    state: present
+  register: proxy_server_install
+
+- name: Remove the Debian default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+
+- name: Write Cloudflare credentials for certbot
+  ansible.builtin.template:
+    src: cloudflare.ini.j2
+    dest: /etc/letsencrypt/cloudflare.ini
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+# certbot creates these on its first run; the hook is written before that
+- name: Ensure the certbot deploy hook directory exists
+  ansible.builtin.file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Reload nginx after certificate renewals
+  ansible.builtin.copy:
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      systemctl reload nginx
+
+# Create-only: renewals are certbot.timer's job, so a changed domain list needs
+# the certificate deleted first (certbot delete --cert-name <name>)
+- name: Issue missing certificates
+  ansible.builtin.command:
+    argv: "{{ ['certbot', 'certonly', '--non-interactive', '--agree-tos',
+               '--email', proxy_server_acme_email, '--server', proxy_server_acme_server,
+               '--dns-cloudflare', '--dns-cloudflare-credentials', '/etc/letsencrypt/cloudflare.ini',
+               '--key-type', 'ecdsa', '--cert-name', item.name]
+              + (item.domains | map('regex_replace', '^', '--domain=') | list) }}"
+    creates: /etc/letsencrypt/live/{{ item.name }}/fullchain.pem
+  loop: "{{ proxy_server_certs }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Install nginx snippets
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/nginx/snippets/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - proxy-headers.conf
+    - proxy-ssl.conf
+    - proxy-assets.conf
+  notify: Reload nginx
+
+# conf.d loads in name order: http-level settings (log_format) before the hosts
+- name: Write nginx proxy config
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: /etc/nginx/conf.d/{{ item.dest }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - {src: proxy-http.conf.j2, dest: 00-proxy-http.conf}
+    - {src: proxy-hosts.conf.j2, dest: proxy-hosts.conf}
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Reload nginx
+
+- name: Ensure nginx is enabled and running
+  # in check mode on a new host the packages are not installed yet
+  when: not (ansible_check_mode and proxy_server_install is changed)
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Ensure certbot.timer is enabled and running
+  # in check mode on a new host the packages are not installed yet
+  when: not (ansible_check_mode and proxy_server_install is changed)
+  ansible.builtin.systemd_service:
+    name: certbot.timer
+    state: started
+    enabled: true

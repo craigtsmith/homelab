@@ -1,0 +1,124 @@
+---
+- name: Add the Proxmox archive key
+  ansible.builtin.get_url:
+    url: "{{ cephfs_backup_keyring_url }}"
+    dest: /usr/share/keyrings/proxmox-archive-keyring-trixie.gpg
+    checksum: "{{ cephfs_backup_keyring_checksum }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add the pbs-client repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/pbs-client.sources
+    content: |
+      Types: deb
+      URIs: {{ cephfs_backup_repo_url }}
+      Suites: {{ cephfs_backup_repo_suite }}
+      Components: main
+      Signed-By: /usr/share/keyrings/proxmox-archive-keyring-trixie.gpg
+    owner: root
+    group: root
+    mode: "0644"
+  register: cephfs_backup_repo
+
+- name: Admit only the static client from the pbs-client repository
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/pbs-client
+    content: |
+      Package: *
+      Pin: origin download.proxmox.com
+      Pin-Priority: -1
+
+      Package: {{ cephfs_backup_package }}
+      Pin: origin download.proxmox.com
+      Pin-Priority: 500
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install the static backup client
+  ansible.builtin.apt:
+    name: "{{ cephfs_backup_package }}"
+    state: present
+    update_cache: "{{ cephfs_backup_repo.changed }}"
+  # check mode adds no repository, so a new one has no package yet
+  when: not (ansible_check_mode and cephfs_backup_repo.changed)
+
+- name: Create the config directory
+  ansible.builtin.file:
+    path: /etc/cephfs-backup
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Write the PBS credentials
+  ansible.builtin.copy:
+    dest: /etc/cephfs-backup/pbs.env
+    content: |
+      PBS_REPOSITORY={{ cephfs_backup_pbs_auth_id }}@{{ cephfs_backup_pbs_host }}:{{ cephfs_backup_pbs_datastore }}
+      PBS_PASSWORD={{ cephfs_backup_pbs_secret }}
+      PBS_FINGERPRINT={{ cephfs_backup_pbs_fingerprint }}
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Copy the backup script
+  ansible.builtin.template:
+    src: cephfs-backup.j2
+    dest: /usr/local/sbin/cephfs-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Write the backup units
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: /etc/systemd/system/{{ item.name }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - name: cephfs-backup.service
+      content: |
+        [Unit]
+        Description=Back up CephFS snapshots to PBS
+        RequiresMountsFor={{ cephfs_backup_mount }}
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=oneshot
+        EnvironmentFile=/etc/cephfs-backup/pbs.env
+        ExecStart=/usr/local/sbin/cephfs-backup
+        Nice=10
+        IOSchedulingClass=idle
+        TimeoutStartSec=4h
+    - name: cephfs-backup.timer
+      content: |
+        [Unit]
+        Description=Nightly CephFS backup to PBS
+
+        [Timer]
+        OnCalendar={{ cephfs_backup_on_calendar }}
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+  register: cephfs_backup_units
+  notify: Reload systemd
+
+- name: Apply systemd changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable the backup timer
+  ansible.builtin.systemd_service:
+    name: cephfs-backup.timer
+    state: started
+    enabled: true
+  # in check mode a new unit file is not written, so systemd does not know it
+  when: not (ansible_check_mode and cephfs_backup_units.changed)

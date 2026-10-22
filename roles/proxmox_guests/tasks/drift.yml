@@ -1,0 +1,27 @@
+---
+- name: Read live guest config
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ item.node }}/{{ item.type }}/{{ item.vmid }}/config"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  loop: "{{ proxmox_guests | selectattr('vmid', 'in', proxmox_guests_live_ids) | list }}"
+  loop_control:
+    label: "{{ item.vmid }} {{ item.name }}"
+  register: proxmox_guests_live
+  check_mode: false
+  no_log: true
+
+- name: Compare declared and live config
+  ansible.builtin.set_fact:
+    proxmox_guests_drift: "{{ lookup('ansible.builtin.template', 'drift.j2') | from_yaml | default([], true) }}"
+
+- name: Drift report
+  ansible.builtin.debug:
+    msg: "{{ proxmox_guests_drift if proxmox_guests_drift | length > 0 else 'No drift: all declared guests match' }}"
+
+- name: Fail on drift when requested
+  ansible.builtin.assert:
+    that: proxmox_guests_drift | length == 0
+    fail_msg: "{{ proxmox_guests_drift | length }} guest config differences"
+  when: proxmox_guests_fail_on_drift | bool

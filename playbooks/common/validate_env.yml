@@ -1,0 +1,46 @@
+---
+- name: Validate required environment variables
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    required_env_vars: []
+    global_required_env_vars:
+      - OP_SERVICE_ACCOUNT_TOKEN
+    env_example_path: ".env"
+
+  tasks:
+    - name: Aggregate required environment variables
+      ansible.builtin.set_fact:
+        env_vars_to_validate: "{{ (global_required_env_vars + (required_env_vars | default([]))) | unique }}"
+      tags: ["always"]
+
+    - name: Ensure required environment variables are defined
+      ansible.builtin.assert:
+        that:
+          - (lookup('env', item) | length) > 0
+        fail_msg: >-
+          Environment variable {{ item }} is required. Set it in your shell
+          environment or in {{ env_example_path }} (see .env.example) and run direnv allow before running Ansible.
+        success_msg: "Environment variable {{ item }} is set."
+      loop: "{{ env_vars_to_validate }}"
+      loop_control:
+        label: "{{ item }}"
+      when: env_vars_to_validate | length > 0
+      tags: ["always"]
+
+    - name: Ensure the private inventory values are set
+      ansible.builtin.assert:
+        that:
+          - domain is defined
+          - appbox1_ansible_host is defined
+          - appbox1_ansible_port is defined
+          - appbox1_tailnet_ip is defined
+          - nas_tailnet_ip is defined
+          - dns_personal_device_ids is defined
+        fail_msg: >-
+          A private inventory value is missing. Copy
+          inventories/prod/group_vars/all/private.yml.example to private.yml in the same
+          directory and fill it in.
+        quiet: true
+      tags: ["always"]

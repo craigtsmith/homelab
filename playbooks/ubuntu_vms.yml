@@ -1,0 +1,11 @@
+---
+- name: Validate environment for Ubuntu VMs
+  import_playbook: common/validate_env.yml
+
+- name: Ubuntu VMs
+  hosts: ubuntu_vms
+  become: true
+  gather_facts: true
+  roles:
+    - role: ubuntu_vm
+    - role: ceph_client

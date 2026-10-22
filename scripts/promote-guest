@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+"""Promote live guest config into guests.yml (drift handling, "promote").
+
+Reads each guest's live config and node with pvesh on the manager over ssh
+and rewrites that guest's `node` and `config:` block in
+inventories/prod/group_vars/all/guests.yml. Comments and other guests are
+kept. Volatile keys (proxmox_guests_volatile_keys) are skipped. Review the
+result with git diff and keep hunks with git add -p.
+
+Usage: uv run scripts/promote-guest <vmid> [<vmid> ...]
+"""
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from ruamel.yaml import YAML
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString, LiteralScalarString
+
+REPO = Path(__file__).resolve().parents[1]
+GUESTS = REPO / "inventories/prod/group_vars/all/guests.yml"
+DEFAULTS = REPO / "roles/proxmox_guests/defaults/main.yml"
+MANAGER = "pve1"
+
+
+def _yaml():
+    y = YAML()
+    y.preserve_quotes = True
+    y.width = 4096
+    y.explicit_start = True
+    y.indent(mapping=2, sequence=4, offset=2)
+    return y
+
+
+def _scalar(value):
+    text = str(value).rstrip("\n")
+    return LiteralScalarString(text) if "\n" in text else DoubleQuotedScalarString(text)
+
+
+def promote(doc, vmid, live_config, live_node, volatile):
+    """Rewrite one guest in a loaded guests.yml document. Returns changed keys."""
+    guest = next((g for g in doc["proxmox_guests"] if g["vmid"] == vmid), None)
+    if guest is None:
+        raise SystemExit("vmid %s is not declared in guests.yml" % vmid)
+    old = {k: str(v).rstrip("\n") for k, v in guest["config"].items()}
+    new = {k: str(v).rstrip("\n") for k, v in live_config.items() if k not in volatile}
+    changed = sorted(k for k in set(old) | set(new) if old.get(k) != new.get(k))
+    if guest["node"] != live_node:
+        guest["node"] = live_node
+        changed.insert(0, "node")
+    config = guest["config"]
+    # A comment between guests hangs off the previous guest's last key; keep it last
+    tail = config.ca.items.pop(list(config)[-1], None) if config else None
+    for k in [k for k in config if k not in new]:
+        del config[k]
+    for k in sorted(new):
+        if old.get(k) != new[k]:
+            config[k] = _scalar(new[k])
+    # keep keys sorted, as the generated file has them
+    for k in sorted(config):
+        config.move_to_end(k)
+    if tail and config:
+        config.ca.items[list(config)[-1]] = tail
+    return changed
+
+
+def _pvesh(path, *args):
+    out = subprocess.run(["ssh", "-o", "BatchMode=yes", MANAGER, "pvesh", "get", path, *args, "--output-format", "json"],
+                         check=True, capture_output=True, text=True).stdout
+    return json.loads(out)
+
+
+def main(argv):
+    if not argv:
+        raise SystemExit(__doc__)
+    y = _yaml()
+    doc = y.load(GUESTS)
+    volatile = set(y.load(DEFAULTS)["proxmox_guests_volatile_keys"])
+    resources = {r["vmid"]: r for r in _pvesh("/cluster/resources", "--type", "vm")}
+    for vmid in map(int, argv):
+        r = resources.get(vmid)
+        if r is None:
+            raise SystemExit("vmid %s does not exist on the cluster" % vmid)
+        live = _pvesh("/nodes/%s/%s/%s/config" % (r["node"], r["type"], vmid))
+        changed = promote(doc, vmid, live, r["node"], volatile)
+        print("%s %s: %s" % (vmid, r.get("name", ""), ", ".join(changed) if changed else "no change"))
+    y.dump(doc, GUESTS)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

@@ -1,0 +1,90 @@
+---
+# Swarm-down mode (patch_stop_swarm), before the first node reboot: record the
+# app services' replica counts on the manager, scale them to 0, then stop the
+# docker VMs through HA, workers first and the manager last. A rerun keeps an
+# earlier record (it never records the zeros) and skips VMs already stopped.
+- name: Read the docker VMs
+  ansible.builtin.import_tasks: swarm_vm_ids.yml
+
+- name: Scale the app services to 0
+  when: patch_swarm_vms[patch_swarm_manager].status == 'running'
+  block:
+    - name: Read swarm services (name|stack|replicas)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        fmt='{% raw %}{{.Spec.Name}}|{{index .Spec.Labels "com.docker.stack.namespace"}}|{% endraw %}'
+        fmt+='{% raw %}{{if .Spec.Mode.Replicated}}{{.Spec.Mode.Replicated.Replicas}}{{end}}{% endraw %}'
+        docker service ls -q | xargs -r docker service inspect --format "$fmt"
+      args:
+        executable: /bin/bash
+      delegate_to: "{{ patch_swarm_manager }}"
+      become: true
+      register: patch_swarm_ls
+      changed_when: false
+      check_mode: false
+
+    - name: Read an earlier record
+      ansible.builtin.slurp:
+        src: "{{ patch_swarm_record }}"
+      delegate_to: "{{ patch_swarm_manager }}"
+      become: true
+      register: patch_swarm_old
+      failed_when: false
+
+    # Replicated services outside patch_swarm_keep_stacks with replicas > 0
+    - name: Pick the app services
+      ansible.builtin.set_fact:
+        patch_swarm_apps: >-
+          {{ patch_swarm_old.content | b64decode | from_json if patch_swarm_old.content is defined
+             else dict(patch_swarm_rows | map(attribute=0) | zip(patch_swarm_rows | map(attribute=2) | map('int'))) }}
+      vars:
+        patch_swarm_rows: >-
+          {{ patch_swarm_ls.stdout_lines | map('split', '|')
+             | rejectattr(1, 'match', '^(' ~ patch_swarm_keep_stacks | join('|') ~ ')$')
+             | rejectattr(2, 'in', ['', '0']) | list }}
+
+    - name: Write the record
+      ansible.builtin.copy:
+        content: "{{ patch_swarm_apps | to_nice_json }}\n"
+        dest: "{{ patch_swarm_record }}"
+        mode: "0600"
+      delegate_to: "{{ patch_swarm_manager }}"
+      become: true
+      when: patch_swarm_old.content is not defined
+
+    - name: Show the plan
+      ansible.builtin.debug:
+        msg:
+          - "scale to 0 ({{ patch_swarm_apps | length }}{{ ', earlier record' if patch_swarm_old.content is defined else '' }}): {{ patch_swarm_apps }}"
+          - "stop through HA: {{ patch_swarm_stop_order }}"
+
+    - name: Scale the app services to 0
+      ansible.builtin.command: docker service scale --detach {{ patch_swarm_apps.keys() | map('regex_replace', '$', '=0') | join(' ') }}
+      delegate_to: "{{ patch_swarm_manager }}"
+      become: true
+      changed_when: true
+      when: patch_swarm_apps | length > 0
+
+    - name: Wait for the app services to stop
+      ansible.builtin.command: docker service ls --format '{{ "{{" }}.Name{{ "}}" }} {{ "{{" }}.Replicas{{ "}}" }}'
+      delegate_to: "{{ patch_swarm_manager }}"
+      become: true
+      register: patch_swarm_left
+      changed_when: false
+      until: >-
+        patch_swarm_left.rc == 0
+        and patch_swarm_left.stdout_lines | map('split', ' ') | selectattr(0, 'in', patch_swarm_apps)
+            | rejectattr(1, 'eq', '0/0') | list | length == 0
+      failed_when: patch_swarm_left.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: patch_swarm_apps | length > 0 and not ansible_check_mode
+
+- name: Stop the docker VMs
+  ansible.builtin.include_tasks: swarm_vm.yml
+  vars:
+    patch_swarm_vm_state: stopped
+    patch_swarm_running: "{{ patch_swarm_vms | dict2items | selectattr('value.status', 'eq', 'running') | map(attribute='key') | list }}"
+  loop: "{{ patch_swarm_stop_order | select('in', patch_swarm_running) | list }}"
+  loop_control:
+    loop_var: patch_swarm_vm

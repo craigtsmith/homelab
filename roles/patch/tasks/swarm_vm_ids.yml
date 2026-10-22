@@ -1,0 +1,20 @@
+---
+# Map the docker VMs (inventory name = VM name) to their cluster resource
+# (vmid, status, hastate).
+- name: Read the docker VMs
+  ansible.builtin.command: pvesh get /cluster/resources --type vm --output-format json
+  register: patch_swarm_resources
+  changed_when: false
+  check_mode: false
+
+- name: Map the docker VMs
+  ansible.builtin.set_fact:
+    patch_swarm_vms: "{{ dict(patch_swarm_rows | map(attribute='name') | zip(patch_swarm_rows)) }}"
+  vars:
+    patch_swarm_rows: "{{ patch_swarm_resources.stdout | from_json | selectattr('name', 'in', patch_swarm_hosts) | list }}"
+
+- name: Check every docker host has a VM
+  ansible.builtin.assert:
+    that: patch_swarm_hosts | difference(patch_swarm_vms) | length == 0
+    fail_msg: "No VM named {{ patch_swarm_hosts | difference(patch_swarm_vms) }}"
+    quiet: true

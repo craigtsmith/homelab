@@ -1,0 +1,153 @@
+---
+- name: Check for Tailscale apt signing key
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/tailscale-archive-keyring.gpg
+  register: tailscale_router_keyring
+
+- name: Install Tailscale apt signing key when missing
+  when: not tailscale_router_keyring.stat.exists
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/{{ tailscale_router_codename }}.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Add Tailscale apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/tailscale.list
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Tailscale packages for ubuntu {{ tailscale_router_codename }}
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu {{ tailscale_router_codename }} main
+  register: tailscale_router_repo
+
+# In check mode on a new host the repo is not added, so neither the package nor
+# tailscaled exists yet
+- name: Install and configure Tailscale
+  when: not (ansible_check_mode and tailscale_router_repo is changed)
+  block:
+    - name: Install Tailscale
+      ansible.builtin.apt:
+        name: tailscale
+        state: present
+        update_cache: "{{ tailscale_router_repo is changed }}"
+
+    - name: Enable IP forwarding for subnet routing
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/99-tailscale.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          net.ipv4.ip_forward = 1
+          net.ipv6.conf.all.forwarding = 1
+      notify: Reload sysctl
+
+    - name: Configure UDP GRO forwarding for subnet routing (kernel 6.2+, tailscale.com/kb/1320)
+      when:
+        - tailscale_router_udp_gro | bool
+        - ansible_kernel.split('-') | first is version('6.2', '>=')
+      block:
+        - name: Install ethtool and networkd-dispatcher
+          ansible.builtin.apt:
+            name:
+              - ethtool
+              - networkd-dispatcher
+            state: present
+
+        - name: Install UDP GRO hook, run when the link becomes routable
+          ansible.builtin.copy:
+            dest: /etc/networkd-dispatcher/routable.d/50-tailscale
+            owner: root
+            group: root
+            mode: "0755"
+            content: |
+              #!/bin/sh
+              /usr/sbin/ethtool -K {{ tailscale_router_gro_iface }} rx-udp-gro-forwarding on rx-gro-list off
+          notify: Apply UDP GRO settings
+
+    - name: Ensure tailscaled is enabled and running
+      ansible.builtin.systemd_service:
+        name: tailscaled
+        state: started
+        enabled: true
+
+    - name: Read Tailscale backend state
+      ansible.builtin.command: tailscale status --json
+      register: tailscale_router_status
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Read Tailscale prefs
+      ansible.builtin.command: tailscale debug prefs
+      register: tailscale_router_prefs_raw
+      changed_when: false
+      check_mode: false
+
+    - name: Parse Tailscale state
+      ansible.builtin.set_fact:
+        tailscale_router_backend: "{{ (tailscale_router_status.stdout | default('{}', true) | from_json).BackendState | default('NoState') }}"
+        tailscale_router_prefs: "{{ tailscale_router_prefs_raw.stdout | from_json }}"
+
+    # The controller reaches the LAN through this subnet route. The first login can move
+    # the route to this node, which strands the open SSH session (seen on a test VM,
+    # 2026-10-15). So the login runs detached and the play reconnects before polling.
+    - name: Log in with auth key when the node is logged out
+      ansible.builtin.shell: >-
+        sleep 5 && tailscale up --authkey={{ tailscale_router_authkey }}
+        --advertise-routes={{ tailscale_router_routes | join(',') }}
+        --accept-dns={{ tailscale_router_accept_dns | lower }}
+        --accept-routes={{ tailscale_router_accept_routes | lower }}
+      when: tailscale_router_backend in ['NeedsLogin', 'NoState', 'Stopped']
+      async: 300
+      poll: 0
+      register: tailscale_router_login
+      changed_when: true
+      no_log: true
+      # --skip-tags tailscale_login keeps a test VM off the tailnet
+      tags: [tailscale_login]
+
+    # Unconditional: reset_connection ignores `when`
+    - name: Drop the SSH connection that the route change may strand
+      ansible.builtin.meta: reset_connection
+      tags: [tailscale_login]
+
+    - name: Wait for the login to finish
+      when:
+        - tailscale_router_login is not skipped
+        - not ansible_check_mode
+      tags: [tailscale_login]
+      block:
+        - name: Reconnect after the route change
+          ansible.builtin.wait_for_connection:
+            delay: 15
+            timeout: 120
+
+        - name: Wait for tailscale up to finish
+          ansible.builtin.async_status:
+            jid: "{{ tailscale_router_login.ansible_job_id }}"
+          register: tailscale_router_login_job
+          until: tailscale_router_login_job.finished
+          retries: 30
+          delay: 5
+          failed_when: tailscale_router_login_job.finished and tailscale_router_login_job.rc != 0
+          no_log: true
+
+    - name: Apply route, DNS and auto-update prefs when they differ
+      ansible.builtin.command: >-
+        tailscale set
+        --advertise-routes={{ tailscale_router_routes | join(',') }}
+        --accept-dns={{ tailscale_router_accept_dns | lower }}
+        --accept-routes={{ tailscale_router_accept_routes | lower }}
+        --auto-update={{ tailscale_router_auto_update | lower }}
+      when:
+        - tailscale_router_backend == 'Running'
+        - (tailscale_router_prefs.AdvertiseRoutes | default([], true) | sort) != (tailscale_router_routes | sort)
+          or tailscale_router_prefs.CorpDNS != tailscale_router_accept_dns
+          or tailscale_router_prefs.RouteAll != tailscale_router_accept_routes
+          or tailscale_router_prefs.AutoUpdate.Apply != tailscale_router_auto_update
+      changed_when: true

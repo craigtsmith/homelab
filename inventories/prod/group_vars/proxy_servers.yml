@@ -1,0 +1,125 @@
+---
+# Reverse proxy settings for proxy1 (roles/proxy_server), from the NPM database on
+# ct104, 2026-10-16. The "# NPM proxy host N" comments keep the old IDs.
+# appbox1 and other tailnet hosts through tailscale1's subnet router
+debian_lxc_static_routes:
+  - { to: 100.64.0.0/10, via: 192.168.100.32 }
+
+proxy_server_certs:
+  - name: wildcard
+    domains: ["*.{{ domain }}"]
+  - name: minio-nassie
+    domains: ["minio.nassie.{{ domain }}"]
+  - name: s3-nassie
+    domains: ["s3.nassie.{{ domain }}"]
+
+# Carried over as they were (craig, 2026-10-16); routing is revisited later. Hosts for
+# retired guests, stopped stacks and docker1's old DB ports were removed 2026-10-19.
+proxy_server_hosts:
+  # NPM proxy host 1
+  - names: ["ha.{{ domain }}"]
+    upstream: http://192.168.100.186:8123
+    http2: false
+  # NPM proxy host 8
+  - names: ["nassie.{{ domain }}"]
+    upstream: https://192.168.1.50:5001
+  # NPM proxy host 11
+  - names: ["portainer.{{ domain }}"]
+    upstream: http://192.168.100.11:9000
+  # NPM proxy host 13
+  - names: ["pve1.{{ domain }}"]
+    upstream: https://192.168.100.10:8006
+  # NPM proxy host 14
+  - names: ["pve2.{{ domain }}"]
+    upstream: https://192.168.100.20:8006
+  # NPM proxy host 15
+  - names: ["pve3.{{ domain }}"]
+    upstream: https://192.168.100.30:8006
+  # NPM proxy host 20
+  - names: ["adguard.{{ domain }}", "dns.{{ domain }}"]
+    upstream: http://192.168.100.53:80
+  # dns2's AdGuard UI (8a, 2026-10-20)
+  - names: ["adguard2.{{ domain }}"]
+    upstream: http://192.168.100.54:80
+  # NPM proxy host 21
+  - names: ["plex.{{ domain }}"]
+    upstream: http://192.168.1.50:32400
+  # NPM proxy host 22
+  - names: ["traefik.{{ domain }}"]
+    upstream: http://192.168.100.11:8081
+    websocket: false
+  # NPM proxy host 25
+  - names: ["sonarr.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 26
+  - names: ["radarr.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 27
+  - names: ["lidarr.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 28
+  - names: ["prowlarr.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:9696  # appbox1 over the tailnet
+  # NPM proxy host 29
+  - names: ["ombi.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 30
+  - names: ["bazarr.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 31
+  - names: ["sync.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 37
+  - names: ["home.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 40
+  - names: ["minio.nassie.{{ domain }}"]
+    upstream: http://192.168.1.50:9011
+    cert: minio-nassie
+    force_ssl: false
+    http2: false
+    hsts: false
+  # NPM proxy host 41
+  - names: ["s3.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 42
+  - names: ["s3.nassie.{{ domain }}"]
+    upstream: http://192.168.1.50:9010
+    cert: s3-nassie
+    force_ssl: false
+    http2: false
+    hsts: false
+  # NPM proxy host 46
+  - names: ["paperless.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 47
+  - names: ["karakeep.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 51
+  - names: ["dispatcharr.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:9191  # appbox1 over the tailnet
+    force_ssl: false
+    hsts: false
+  # NPM proxy host 59
+  - names: ["nzb.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:8585  # appbox1 over the tailnet
+  # NPM proxy host 60
+  - names: ["profilarr.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 61
+  - names: ["byparr.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:8191  # appbox1 over the tailnet
+  # NPM proxy host 64
+  - names: ["navidrome.{{ domain }}"]
+    upstream: http://192.168.100.11:8080
+  # NPM proxy host 65
+  - names: ["aurral.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:3005  # appbox1 over the tailnet
+  # NPM proxy host 66
+  - names: ["deluge.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:8112  # appbox1 over the tailnet
+  - names: ["slskd.{{ domain }}"]
+    upstream: http://{{ appbox1_tailnet_ip }}:5030  # appbox1 over the tailnet
+  # NPM proxy host 67
+  - names: ["rustfs.{{ domain }}"]
+    upstream: http://192.168.100.11:8080

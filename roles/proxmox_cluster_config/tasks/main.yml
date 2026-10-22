@@ -1,0 +1,118 @@
+---
+# Report (default), revert (proxmox_cluster_config_write) or promote
+# (proxmox_cluster_config_capture). See README.md, "Drift handling".
+- name: Refuse revert and promote together
+  ansible.builtin.assert:
+    that: not (proxmox_cluster_config_write | bool and proxmox_cluster_config_capture | bool)
+    fail_msg: Set proxmox_cluster_config_write (revert) or proxmox_cluster_config_capture (promote), not both
+    quiet: true
+
+# A file missing on a fresh cluster reads as empty
+- name: Read live cluster-wide files
+  ansible.builtin.slurp:
+    src: /etc/pve/{{ item.dest }}
+  loop: "{{ proxmox_cluster_config_files }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  register: proxmox_cluster_config_live
+  failed_when: false
+
+- name: Parse repo and live files into objects
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_repo_objects: >-
+      {{ query('ansible.builtin.file', *proxmox_cluster_config_repo_paths)
+         | map('replace', '${domain}', domain) | list
+         | pve_cfg_parse_all(proxmox_cluster_config_dests) }}
+    proxmox_cluster_config_live_objects: >-
+      {{ proxmox_cluster_config_live.results | map(attribute='content', default='') | map('b64decode') | list
+         | pve_cfg_parse_all(proxmox_cluster_config_dests) }}
+  vars:
+    proxmox_cluster_config_dests: "{{ proxmox_cluster_config_files | map(attribute='dest') | list }}"
+    proxmox_cluster_config_repo_paths: >-
+      {{ proxmox_cluster_config_files | map(attribute='src') | map('regex_replace', '^', role_path ~ '/files/') | list }}
+
+# Compared by hash; the values are never shown
+- name: Read live PBS password
+  ansible.builtin.slurp:
+    src: /etc/pve/priv/storage/pbs.pw
+  register: proxmox_cluster_config_pbs_live
+  failed_when: false
+  no_log: true
+
+# Double-quoted so YAML turns \n into a newline; Jinja leaves it literal
+- name: Compare PBS password with 1Password
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_pbs_drift: "{{ proxmox_cluster_config_pbs_live_sum != proxmox_cluster_config_pbs_repo_sum }}"
+  vars:
+    proxmox_cluster_config_pbs_live_sum: "{{ proxmox_cluster_config_pbs_live.content | default('') | b64decode | hash('sha256') }}"
+    proxmox_cluster_config_pbs_repo_sum: "{{ (proxmox_cluster_config_pbs_password ~ '\n') | hash('sha256') }}"
+  no_log: true
+
+- name: Collect drift
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_drift: >-
+      {{ proxmox_cluster_config_repo_objects | pve_cfg_drift(proxmox_cluster_config_live_objects)
+         + (['priv/storage/pbs.pw: differs from 1Password pbs-root (values not shown)']
+            if proxmox_cluster_config_pbs_drift | bool else []) }}
+
+- name: Drift report
+  ansible.builtin.debug:
+    msg: "{{ proxmox_cluster_config_drift if proxmox_cluster_config_drift | length > 0 else 'No drift: live /etc/pve objects match the repo' }}"
+
+# Promote: live files into the repo; keep per object with git add -p. The domain is
+# written back as ${domain} (the repo is public)
+- name: Capture live files into the repo
+  ansible.builtin.copy:
+    content: "{{ item.content | b64decode | replace(domain, '${domain}') }}"
+    dest: "{{ role_path }}/files/{{ item.item.src }}"
+    mode: "0644"
+  loop: "{{ proxmox_cluster_config_live.results | selectattr('content', 'defined')
+            | selectattr('item', 'in', proxmox_cluster_config_selected) | list }}"
+  loop_control:
+    label: "{{ item.item.dest }}"
+  delegate_to: localhost
+  when: proxmox_cluster_config_capture | bool
+
+# Revert: per object with pvesh (same API handlers and locks as the UI).
+# Unmanaged live objects are never removed.
+- name: Plan revert
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_plan: >-
+      {{ proxmox_cluster_config_repo_objects
+         | pve_cfg_commands(proxmox_cluster_config_live_objects, proxmox_cluster_config_only) }}
+  when: proxmox_cluster_config_write | bool
+
+- name: Revert plan
+  ansible.builtin.debug:
+    msg: "{{ proxmox_cluster_config_plan | pve_cfg_plan_lines if proxmox_cluster_config_plan | length > 0 else 'Nothing to revert' }}"
+  when: proxmox_cluster_config_write | bool
+
+# The pbs storage needs its password when it is created
+- name: Revert objects
+  ansible.builtin.command:
+    argv: "{{ item.argv + (['--password', proxmox_cluster_config_pbs_password]
+                           if item.argv[1:3] == ['create', '/storage'] and item.id == 'storage:pbs' else []) }}"
+  loop: "{{ proxmox_cluster_config_plan | default([]) | selectattr('argv') | list }}"
+  loop_control:
+    label: "{{ item.argv | join(' ') }}"
+  changed_when: true
+  no_log: "{{ proxmox_cluster_config_plan | default([]) | selectattr('id', 'eq', 'storage:pbs') | list | length > 0 }}"
+  when: proxmox_cluster_config_write | bool
+
+- name: Revert PBS password
+  ansible.builtin.command:
+    argv: [pvesh, set, /storage/pbs, --password, "{{ proxmox_cluster_config_pbs_password }}"]
+  changed_when: true
+  no_log: true
+  when: proxmox_cluster_config_write | bool and proxmox_cluster_config_pbs_selected | bool and proxmox_cluster_config_pbs_drift | bool
+
+- name: HA resources and rules
+  ansible.builtin.include_tasks: ha.yml
+
+- name: Fail on drift when requested
+  ansible.builtin.assert:
+    that: proxmox_cluster_config_drift | length + proxmox_cluster_config_ha_drift | length == 0
+    fail_msg: >-
+      {{ proxmox_cluster_config_drift | length }} cluster objects and
+      {{ proxmox_cluster_config_ha_drift | length }} HA objects differ
+  when: proxmox_cluster_config_fail_on_drift | bool

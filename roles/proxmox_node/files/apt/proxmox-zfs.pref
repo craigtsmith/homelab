@@ -1,0 +1,6 @@
+# Proxmox builds ZFS for its kernel. Debian's ZFS 2.3.9 outranked Proxmox's
+# 2.3.4-pve1 on 2026-08-25 and replaced it (with zfs-dkms); never take ZFS
+# from Debian.
+Package: zfs* libzfs* libzpool* libnvpair* libuutil* pam-zfs-key
+Pin: release o=Debian
+Pin-Priority: -1

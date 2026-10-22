@@ -1,0 +1,14 @@
+---
+# Handlers run in this order: test first, so a bad config never reaches the reload
+- name: Test nginx config
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  listen: Reload nginx
+
+- name: Reload nginx service
+  # in check mode on a new host nginx is not installed yet
+  when: not (ansible_check_mode and proxy_server_install is changed)
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  listen: Reload nginx

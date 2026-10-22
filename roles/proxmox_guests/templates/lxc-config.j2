@@ -1,0 +1,16 @@
+{# Create body for POST /nodes/{node}/lxc: declared config, with rootfs rewritten
+   from "storage:vm-N-disk-0,opts,size=4G" to "storage:4,opts". #}
+vmid: {{ guest.vmid }}
+hostname: {{ guest.name | to_json }}
+ostemplate: {{ (guest.ostemplate | default(proxmox_guests_lxc_template)) | to_json }}
+ssh-public-keys: {{ ssh_public_key | to_json }}
+{% for k, v in guest.config.items() %}
+{%   if k == 'rootfs' %}
+{%     set storage = v.split(':')[0] %}
+{%     set size = v | regex_search('size=\d+G') | regex_replace('^size=(\d+)G$', '\\1') %}
+{%     set opts = v.split(',')[1:] | reject('match', '^size=') | join(',') %}
+rootfs: "{{ storage }}:{{ size }}{{ ',' ~ opts if opts else '' }}"
+{%   else %}
+{{ k }}: {{ v | to_json }}
+{%   endif %}
+{% endfor %}

@@ -1,0 +1,53 @@
+---
+- name: Configure PostgreSQL apt archive
+  ansible.builtin.import_tasks: pgdg-repo.yml
+  when: ubuntu_vm_pgdg_repo | bool
+
+- name: Upgrade base system packages
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: "yes"
+  when: ubuntu_vm_upgrade | bool
+
+- name: Install diagnostic tooling
+  ansible.builtin.apt:
+    name: "{{ ubuntu_vm_base_packages }}"
+    state: present
+  when: ubuntu_vm_base_packages | length > 0
+
+- name: Ensure qemu-guest-agent is installed
+  ansible.builtin.apt:
+    name: qemu-guest-agent
+    state: present
+
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ ubuntu_vm_timezone }}"
+
+- name: Keep the Ansible-set hostname across cloud-init runs
+  ansible.builtin.copy:
+    content: |
+      preserve_hostname: true
+    dest: /etc/cloud/cloud.cfg.d/99-homelab.cfg
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ ubuntu_vm_hostname }}"
+
+- name: Configure DNS override
+  ansible.builtin.import_tasks: dns.yml
+  when: ubuntu_vm_dns_override | bool
+
+- name: Configure network tuning
+  ansible.builtin.import_tasks: networking.yml
+  when: ubuntu_vm_net_tuning | bool
+
+- name: Configure static routes
+  ansible.builtin.import_tasks: routes.yml
+  when: ubuntu_vm_static_routes | length > 0
+
+- name: Configure mounts
+  ansible.builtin.import_tasks: mounts.yml

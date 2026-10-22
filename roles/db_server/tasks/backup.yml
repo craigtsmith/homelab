@@ -1,0 +1,64 @@
+---
+- name: Install backup tools
+  ansible.builtin.apt:
+    name: rsync
+    state: present
+
+- name: Copy backup script
+  ansible.builtin.template:
+    src: db-backup.j2
+    dest: /usr/local/sbin/db-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ db_server_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write backup units
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: /etc/systemd/system/{{ item.name }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - name: db-backup.service
+      content: |
+        [Unit]
+        Description=Dump PostgreSQL and MySQL databases
+        After=postgresql.service mysql.service
+        RequiresMountsFor={{ db_server_backup_nas_mount }}
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/db-backup
+        Nice=10
+        TimeoutStartSec=45min
+    - name: db-backup.timer
+      content: |
+        [Unit]
+        Description=Hourly database dumps
+
+        [Timer]
+        OnCalendar={{ db_server_backup_on_calendar }}
+
+        [Install]
+        WantedBy=timers.target
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Reload systemd
+
+- name: Apply systemd changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable backup timer
+  ansible.builtin.systemd_service:
+    name: db-backup.timer
+    state: started
+    enabled: true

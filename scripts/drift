@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Drift report for everything the repo manages. Runs every playbook with
+# --check --diff, one host at a time, canaries first, and writes one log per
+# run plus summary-<HHMM>.md under _private/drift/<date>/. Read-only: nothing is
+# applied. Revert or promote per object afterwards (README.md, "Drift
+# handling").
+#
+# Usage: scripts/drift [pattern ...]   (only runs whose "playbook:host" matches)
+# Also reports the age of the newest CephFS backup in PBS (fails past 26 h).
+set -uo pipefail
+
+here=$(cd "$(dirname "$0")" && pwd)
+repo=$(cd "$here/.." && pwd)
+out="$repo/_private/drift/$(date +%F)"
+mkdir -p "$out"
+
+# playbook:limit, canary first per playbook (pve3 for nodes, docker3 for VMs)
+runs=(
+  proxmox_cluster_config.yml:pve1
+  proxmox_guests.yml:localhost
+  proxmox_nodes.yml:pve3 proxmox_nodes.yml:pve2 proxmox_nodes.yml:pve1
+  pbs_servers.yml:pbs
+  ubuntu_vms.yml:docker3 ubuntu_vms.yml:docker2 ubuntu_vms.yml:docker1
+  ubuntu_vms.yml:db1 ubuntu_vms.yml:util1 ubuntu_vms.yml:tailscale1
+  docker_hosts.yml:docker3 docker_hosts.yml:docker2 docker_hosts.yml:docker1
+  db_servers.yml:db1
+  util_servers.yml:util1
+  tailscale_routers.yml:tailscale1
+  proxy_servers.yml:proxy1
+  dns_servers.yml:dns1 dns_servers.yml:dns2
+  appbox_servers.yml:appbox1
+  portainer_stacks.yml:localhost
+)
+
+if [ $# -gt 0 ]; then
+  selected=()
+  for r in "${runs[@]}"; do
+    for p in "$@"; do [[ $r == *$p* ]] && selected+=("$r") && break; done
+  done
+  runs=("${selected[@]}")
+fi
+
+summary="$out/summary-$(date +%H%M).md"
+{
+  echo "# Drift $(date '+%F %H:%M')"
+  echo
+  echo "| playbook | host | changed | failed | report |"
+  echo "| --- | --- | --- | --- | --- |"
+} >"$summary"
+
+status=0
+for r in "${runs[@]}"; do
+  pb=${r%%:*} host=${r##*:}
+  log="$out/${pb%.yml}-$host.log"
+  echo ">> $pb $host"
+  # localhost is implicit (not in the inventory), so it takes no --limit
+  limit=(--limit "$host")
+  [ "$host" = localhost ] && limit=()
+  (cd "$repo" && ANSIBLE_NOCOLOR=1 uv run ansible-playbook "playbooks/$pb" --check --diff ${limit[@]+"${limit[@]}"}) >"$log" 2>&1
+  rc=$?
+  recap=$(grep -E "^$host +:" "$log" | tail -1)
+  changed=$(sed -nE 's/.*changed=([0-9]+).*/\1/p' <<<"$recap")
+  failed=$(sed -nE 's/.*failed=([0-9]+).*/\1/p' <<<"$recap")
+  unreachable=$(sed -nE 's/.*unreachable=([0-9]+).*/\1/p' <<<"$recap")
+  [ "${unreachable:-0}" != 0 ] && failed="$failed, unreachable=$unreachable"
+  # Report tasks (cluster config, HA, guests) print "No drift: ..." when clean
+  reports=$(grep -cE '^TASK \[.*[Dd]rift report\]' "$log")
+  clean=$(grep -c '"msg": "No drift' "$log")
+  if [ "$reports" -eq 0 ]; then report="-"
+  elif [ "$clean" -eq "$reports" ]; then report="no drift"
+  else report="DRIFT (see log)"; fi
+  [ $rc -ne 0 ] && status=1
+  echo "| $pb | $host | ${changed:-?} | ${failed:-?}$([ $rc -ne 0 ] && echo " rc=$rc") | $report |" >>"$summary"
+done
+
+# Backup freshness: the CephFS backup has no alerting (docs/operations.md, "CephFS
+# backup"), so report the age of its newest PBS snapshot here
+max_age=26
+age=$(ssh -n -o ConnectTimeout=10 pbs \
+  'proxmox-backup-debug api get /admin/datastore/pbs-nas/snapshots --ns cephfs --output-format json' 2>/dev/null |
+  python3 -c 'import json, sys, time
+s = json.load(sys.stdin)
+print(round((time.time() - max(x["backup-time"] for x in s)) / 3600, 1) if s else "none")' 2>/dev/null)
+if [ -z "$age" ]; then fresh="query FAILED"; status=1
+elif [ "$age" = none ] || awk -v a="$age" -v m="$max_age" 'BEGIN { exit !(a > m) }'; then
+  fresh="STALE: newest is ${age} h old (limit ${max_age} h)"; status=1
+else fresh="ok: newest is ${age} h old"; fi
+{
+  echo
+  echo "CephFS backup (PBS pbs-nas, namespace cephfs): $fresh"
+} >>"$summary"
+
+echo
+cat "$summary"
+echo
+echo "Logs: $out"
+exit $status

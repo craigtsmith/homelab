@@ -1,0 +1,17 @@
+---
+# Wait for a Proxmox task (UPID in proxmox_guests_upid) to finish successfully
+- name: Wait for Proxmox task
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_task_node }}/tasks/{{ proxmox_guests_upid | urlencode }}/status"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_task
+  until: proxmox_guests_task.json.data.status == 'stopped'
+  retries: 180
+  delay: 5
+  failed_when: >-
+    proxmox_guests_task.json is defined and proxmox_guests_task.json.data.status == 'stopped'
+    and proxmox_guests_task.json.data.exitstatus != 'OK'
+  check_mode: false
+  no_log: true

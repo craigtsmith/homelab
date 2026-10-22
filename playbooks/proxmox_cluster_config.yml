@@ -1,0 +1,14 @@
+---
+# Reports drift per object between /etc/pve and the repo; never writes by default.
+# Revert: -e proxmox_cluster_config_write=true. Promote: -e proxmox_cluster_config_capture=true.
+- name: Validate environment for Proxmox cluster config
+  import_playbook: common/validate_env.yml
+
+- name: Proxmox cluster-wide config
+  hosts: proxmox_nodes
+  gather_facts: false
+  tasks:
+    - name: Apply cluster config on the manager node
+      ansible.builtin.include_role:
+        name: proxmox_cluster_config
+      when: cluster_role == 'manager'

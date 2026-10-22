@@ -1,0 +1,5 @@
+---
+- name: Install database client tooling
+  ansible.builtin.apt:
+    name: "{{ util_server_packages }}"
+    state: present

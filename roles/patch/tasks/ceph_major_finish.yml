@@ -1,0 +1,38 @@
+---
+# After every daemon restarted: require the new OSD release, unset noout, check.
+- name: Read Ceph daemon versions
+  ansible.builtin.command: ceph versions -f json
+  register: patch_ceph_versions
+  changed_when: false
+  check_mode: false
+
+- name: Check every daemon runs the new release
+  ansible.builtin.assert:
+    that: (patch_ceph_versions.stdout | from_json).overall.keys() | reject('search', ' ' ~ patch_ceph_major_to ~ ' ') | list | length == 0
+    fail_msg: "Still running: {{ (patch_ceph_versions.stdout | from_json).overall }}"
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Require the new OSD release
+  ansible.builtin.command: ceph osd require-osd-release {{ patch_ceph_major_to }}
+  changed_when: true
+
+- name: Unset Ceph noout
+  ansible.builtin.command: ceph osd unset noout
+  changed_when: true
+
+- name: Read the mon release
+  ansible.builtin.command: ceph mon dump -f json
+  register: patch_mon_dump
+  changed_when: false
+  check_mode: false
+
+- name: Show the result
+  ansible.builtin.debug:
+    msg: "min_mon_release {{ (patch_mon_dump.stdout | from_json).min_mon_release_name | default('?') }}"
+
+- name: Wait for Ceph health (noout cleared)
+  ansible.builtin.include_tasks: ceph_health.yml
+  vars:
+    patch_ceph_also_ignored: []
+  when: not ansible_check_mode

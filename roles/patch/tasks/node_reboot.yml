@@ -1,0 +1,226 @@
+---
+# Reboot a Proxmox node with its guests handled (craig, 2026-10-16):
+# - docker VMs ride: drained in the swarm, HA state `ignored`, shut down, and
+#   started again on this node after the reboot;
+# - every other running guest moves with HA node maintenance (VMs live, LXCs
+#   restart) and returns by its node-affinity rule when maintenance ends.
+# Ceph runs with noout while the node is down.
+- name: Decide on the reboot
+  ansible.builtin.import_tasks: reboot_needed.yml
+
+- name: Reboot {{ inventory_hostname }}
+  when: patch_reboot_needed
+  block:
+    - name: Read pve-qemu-kvm on every node
+      ansible.builtin.command: dpkg-query -W -f '${Version}' pve-qemu-kvm
+      delegate_to: "{{ item }}"
+      register: patch_qemu
+      changed_when: false
+      check_mode: false
+      loop: "{{ groups['proxmox_nodes'] }}"
+
+    # Guests only migrate from older to newer QEMU; with every node on the
+    # same packages a running guest never moves to an older binary.
+    - name: Check every node has the same QEMU
+      ansible.builtin.assert:
+        that: patch_qemu.results | map(attribute='stdout') | unique | length == 1
+        fail_msg: "pve-qemu-kvm differs: {{ patch_qemu.results | items2dict(key_name='item', value_name='stdout') }}. Upgrade packages on every node first."
+        quiet: true
+
+    - name: Check the cluster is quorate
+      ansible.builtin.command: pvecm status
+      register: patch_pvecm
+      changed_when: false
+      check_mode: false
+      failed_when: patch_pvecm.stdout is not search('Quorate:\s+Yes')
+
+    - name: Check Ceph is healthy
+      ansible.builtin.include_tasks: ceph_health.yml
+      vars:
+        patch_ceph_retries: 1
+
+    - name: Read guests and HA resources
+      ansible.builtin.shell: |
+        set -euo pipefail
+        pvesh get /cluster/resources --type vm --output-format json
+        echo
+        pvesh get /cluster/resources --type node --output-format json
+        echo
+        pvesh get /cluster/ha/status/current --output-format json
+      args:
+        executable: /bin/bash
+      register: patch_cluster
+      changed_when: false
+      check_mode: false
+
+    - name: Plan the guests
+      ansible.builtin.set_fact:
+        patch_running: "{{ patch_guests | selectattr('node', 'eq', inventory_hostname) | selectattr('status', 'eq', 'running') | list }}"
+        patch_ha_sids: "{{ patch_ha | selectattr('type', 'eq', 'service') | map(attribute='sid') | list }}"
+        patch_other_nodes: "{{ patch_nodes | rejectattr('node', 'eq', inventory_hostname) | selectattr('status', 'eq', 'online') | list }}"
+      vars:
+        patch_out: "{{ patch_cluster.stdout_lines | select | map('from_json') | list }}"
+        patch_guests: "{{ patch_out[0] }}"
+        patch_nodes: "{{ patch_out[1] }}"
+        patch_ha: "{{ patch_out[2] }}"
+
+    - name: Split riding and moving guests
+      ansible.builtin.set_fact:
+        patch_riding: "{{ patch_running | selectattr('name', 'in', patch_ride_guests) | list }}"
+        patch_moving: "{{ patch_running | rejectattr('name', 'in', patch_ride_guests) | list }}"
+
+    - name: Check every running guest is an HA resource
+      ansible.builtin.assert:
+        that: >-
+          patch_running | map(attribute='id') | map('regex_replace', '^(qemu|lxc)/', '')
+          | difference(patch_ha_sids | map('regex_replace', '^(vm|ct):', '')) | length == 0
+        fail_msg: "Running guests outside HA on {{ inventory_hostname }}: {{ patch_running | map(attribute='name') | list }}"
+        quiet: true
+
+    - name: Check the moving guests fit on the other nodes
+      ansible.builtin.assert:
+        that:
+          - patch_moving | map(attribute='maxmem') | sum < patch_other_nodes | map(attribute='maxmem') | sum - patch_other_nodes | map(attribute='mem') | sum
+          - patch_other_nodes | length == groups['proxmox_nodes'] | length - 1
+        fail_msg: "Moving {{ patch_moving | map(attribute='name') | list }} does not fit, or a node is offline"
+        quiet: true
+
+    - name: Show the plan
+      ansible.builtin.debug:
+        msg:
+          - "ride (shut down, started here after): {{ patch_riding | map(attribute='name') | list }}"
+          - "move (HA maintenance, back after): {{ patch_moving | map(attribute='name') | list }}"
+
+    - name: Drain the riding docker hosts
+      ansible.builtin.include_tasks: swarm_drain.yml
+      loop: "{{ patch_riding | map(attribute='name') | list }}"
+      loop_control:
+        loop_var: patch_swarm_node
+
+    - name: Take the riding guests out of HA control
+      ansible.builtin.command: ha-manager set vm:{{ item.vmid }} --state ignored
+      loop: "{{ patch_riding }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Shut down the riding guests
+      ansible.builtin.command: qm shutdown {{ item.vmid }} --timeout 600
+      loop: "{{ patch_riding }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Set Ceph noout
+      ansible.builtin.command: ceph osd set noout
+      changed_when: true
+
+    - name: Enable HA maintenance (moves the other guests)
+      ansible.builtin.command: ha-manager crm-command node-maintenance enable {{ inventory_hostname }}
+      changed_when: true
+
+    - name: Wait until no guest runs on {{ inventory_hostname }}
+      ansible.builtin.command: pvesh get /nodes/{{ inventory_hostname }}/{{ item }} --output-format json
+      register: patch_left
+      changed_when: false
+      until: patch_left.rc == 0 and patch_left.stdout | from_json | selectattr('status', 'eq', 'running') | list | length == 0
+      failed_when: patch_left.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      loop: [qemu, lxc]
+      when: not ansible_check_mode
+
+    - name: Record the physical NIC names
+      ansible.builtin.set_fact:
+        patch_nics_before: "{{ ansible_facts.interfaces | select('match', '^(en|eth)') | list }}"
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 1200
+
+    - name: Read network facts after the reboot
+      ansible.builtin.setup:
+        gather_subset: [network]
+
+    - name: Check the NIC names survived
+      ansible.builtin.assert:
+        that: patch_nics_before | difference(ansible_facts.interfaces) | length == 0
+        fail_msg: "Missing after reboot: {{ patch_nics_before | difference(ansible_facts.interfaces) }}"
+        quiet: true
+
+    - name: Wait for quorum
+      ansible.builtin.command: pvecm status
+      register: patch_pvecm
+      changed_when: false
+      until: patch_pvecm.stdout is search('Quorate:\s+Yes')
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: not ansible_check_mode
+
+    - name: Wait for Ceph (noout set)
+      ansible.builtin.include_tasks: ceph_health.yml
+      vars:
+        patch_ceph_also_ignored: [OSDMAP_FLAGS]
+      when: not ansible_check_mode
+
+    - name: Unset Ceph noout
+      ansible.builtin.command: ceph osd unset noout
+      changed_when: true
+
+    - name: Disable HA maintenance (guests return)
+      ansible.builtin.command: ha-manager crm-command node-maintenance disable {{ inventory_hostname }}
+      changed_when: true
+
+    - name: Start the riding guests
+      ansible.builtin.command: qm start {{ item.vmid }}
+      loop: "{{ patch_riding }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Hand the riding guests back to HA
+      ansible.builtin.command: ha-manager set vm:{{ item.vmid }} --state started
+      loop: "{{ patch_riding }}"
+      loop_control:
+        label: "{{ item.name }}"
+      changed_when: true
+
+    - name: Wait for SSH on the riding guests
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item.name].ansible_host }}"
+        port: 22
+        timeout: 600
+      delegate_to: localhost
+      become: false
+      loop: "{{ patch_riding }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: not ansible_check_mode
+
+    - name: Set the riding docker hosts active
+      ansible.builtin.include_tasks: swarm_active.yml
+      loop: "{{ patch_riding | map(attribute='name') | list }}"
+      loop_control:
+        loop_var: patch_swarm_node
+
+    # Only guests whose node-affinity names this node come back
+    - name: Wait for the moved guests to return
+      ansible.builtin.command: pvesh get /cluster/ha/status/current --output-format json
+      register: patch_ha_now
+      changed_when: false
+      vars:
+        patch_back: >-
+          {{ patch_ha_now.stdout | from_json | selectattr('type', 'eq', 'service')
+             | selectattr('node', 'eq', inventory_hostname) | selectattr('state', 'eq', 'started')
+             | map(attribute='sid') | map('regex_replace', '^(vm|ct):', '') | list }}
+        patch_homed_here: >-
+          {{ proxmox_guests | selectattr('ha.node', 'defined') | selectattr('ha.node', 'eq', inventory_hostname)
+             | map(attribute='vmid') | map('string') | list }}
+      until: >-
+        patch_ha_now.rc == 0
+        and patch_moving | map(attribute='vmid') | map('string')
+            | intersect(patch_homed_here) | difference(patch_back) | length == 0
+      failed_when: patch_ha_now.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: not ansible_check_mode

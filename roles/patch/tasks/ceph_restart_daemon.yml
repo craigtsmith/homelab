@@ -1,0 +1,43 @@
+---
+- name: Read the running version of {{ patch_ceph_daemon }}
+  ansible.builtin.command: ceph {{ patch_ceph_daemon }} metadata {{ inventory_hostname }} -f json
+  register: patch_ceph_meta
+  changed_when: false
+  check_mode: false
+
+- name: Restart when outdated, {{ patch_ceph_daemon }}
+  when: (patch_ceph_meta.stdout | from_json).ceph_version_short != patch_ceph_installed.stdout | regex_replace('-pve.*$', '')
+  block:
+    - name: Restart the daemon
+      ansible.builtin.systemd_service:
+        name: ceph-{{ patch_ceph_daemon }}@{{ inventory_hostname }}
+        state: restarted
+
+    - name: Wait for the daemon to report the new version
+      ansible.builtin.command: ceph {{ patch_ceph_daemon }} metadata {{ inventory_hostname }} -f json
+      register: patch_ceph_meta_new
+      changed_when: false
+      until: >-
+        patch_ceph_meta_new.rc == 0
+        and (patch_ceph_meta_new.stdout | from_json).ceph_version_short
+            == patch_ceph_installed.stdout | regex_replace('-pve.*$', '')
+      failed_when: patch_ceph_meta_new.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: not ansible_check_mode
+
+    - name: Wait for mon quorum
+      ansible.builtin.command: ceph quorum_status -f json
+      register: patch_quorum
+      changed_when: false
+      until: >-
+        patch_quorum.rc == 0
+        and (patch_quorum.stdout | from_json).quorum_names | length == groups['proxmox_nodes'] | length
+      failed_when: patch_quorum.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: not ansible_check_mode
+
+    - name: Wait for Ceph health
+      ansible.builtin.include_tasks: ceph_health.yml
+      when: not ansible_check_mode

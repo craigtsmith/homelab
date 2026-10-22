@@ -1,0 +1,11 @@
+---
+- name: Common setup
+  ansible.builtin.import_tasks: setup.yml
+- name: PostgreSQL
+  ansible.builtin.import_tasks: postgresql.yml
+- name: MySQL
+  ansible.builtin.import_tasks: mysql.yml
+- name: Valkey
+  ansible.builtin.import_tasks: valkey.yml
+- name: Backups
+  ansible.builtin.import_tasks: backup.yml

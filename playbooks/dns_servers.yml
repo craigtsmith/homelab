@@ -1,0 +1,9 @@
+---
+- name: Validate environment for dns servers
+  import_playbook: common/validate_env.yml
+
+- name: DNS servers (AdGuard Home)
+  hosts: dns_servers
+  gather_facts: true
+  roles:
+    - role: dns_server

@@ -1,0 +1,33 @@
+---
+docker_host_role: "{{ kind | default('manager') }}"
+# Workers join through this host. false converges without joining or initialising a swarm
+# (test VMs, a manager waiting for a restore)
+docker_host_manager: "{{ groups['docker_hosts'] | first }}"
+docker_host_join_swarm: true
+
+docker_host_repo_url: https://download.docker.com/linux/ubuntu
+docker_host_repo_codename: "{{ ansible_distribution_release | default('noble') }}"
+docker_host_repo_arch: amd64
+# Pinned so check mode skips the download (a new Last-Modified upstream reads as changed);
+# a rotated key fails the run instead of being trusted silently
+docker_host_repo_key_checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+
+# Engine packages are pinned to this version and held
+docker_host_engine_versions:
+  noble: "5:29.9.1-1~ubuntu.24.04~noble"
+docker_host_engine_version: "{{ docker_host_engine_versions[docker_host_repo_codename] }}"
+docker_host_engine_packages:
+  - docker-ce
+  - docker-ce-cli
+
+# Portainer + Traefik bootstrap stack. Deployed only when the stack is absent;
+# Portainer manages it (and its image updates) from then on.
+docker_host_portainer_stack: portainer-traefik
+docker_host_portainer_image: portainer/portainer-ee:sts
+docker_host_portainer_agent_image: portainer/agent:sts
+docker_host_portainer_data_path: /var/lib/portainer
+docker_host_traefik_image: traefik:v3.7.15
+docker_host_stack_dir: /home/serveradmin
+
+# Host directories that swarm services bind-mount (bind sources must exist)
+docker_host_dirs: []

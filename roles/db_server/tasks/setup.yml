@@ -1,0 +1,6 @@
+---
+# noble refuses system-wide pip installs (PEP 668)
+- name: Install Python prerequisites
+  ansible.builtin.apt:
+    name: "{{ db_server_python_packages }}"
+    state: present

@@ -1,0 +1,74 @@
+---
+- name: Read installed AdGuard Home version
+  ansible.builtin.command: "{{ dns_server_dir }}/AdGuardHome --version"
+  register: dns_server_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install AdGuard Home {{ dns_server_version }}
+  when: dns_server_version not in dns_server_installed.stdout | default('')
+  block:
+    - name: Download AdGuard Home release
+      ansible.builtin.get_url:
+        url: "{{ dns_server_url }}"
+        dest: /root/AdGuardHome_{{ dns_server_version }}_linux_amd64.tar.gz
+        checksum: "{{ dns_server_checksum }}"
+        mode: "0644"
+
+    - name: Unpack AdGuard Home into {{ dns_server_dir | dirname }}
+      ansible.builtin.unarchive:
+        src: /root/AdGuardHome_{{ dns_server_version }}_linux_amd64.tar.gz
+        dest: "{{ dns_server_dir | dirname }}"
+        remote_src: true
+      # check mode does not download, so there is nothing to unpack yet
+      when: not ansible_check_mode
+      notify: Restart AdGuardHome
+
+# The config holds the admin password hash, so the write runs with no_log and the
+# diff is shown on copies with the hash masked
+- name: Read live AdGuardHome.yaml
+  ansible.builtin.slurp:
+    src: "{{ dns_server_dir }}/AdGuardHome.yaml"
+  register: dns_server_live_config
+  failed_when: false
+  check_mode: false
+  no_log: true
+
+- name: Report AdGuardHome.yaml drift (hash masked)
+  ansible.utils.fact_diff:
+    before: >-
+      {{ (dns_server_live_config.content | default('') | b64decode)
+         | regex_replace('(?m)^    password: .*$', '    password: <masked>') }}
+    after: >-
+      {{ lookup('ansible.builtin.template', 'AdGuardHome.yaml.j2',
+                template_vars={'dns_server_admin_password_hash': '<masked>'}) }}
+
+- name: Write AdGuardHome.yaml
+  ansible.builtin.template:
+    src: AdGuardHome.yaml.j2
+    dest: "{{ dns_server_dir }}/AdGuardHome.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  diff: false
+  no_log: true
+  notify: Restart AdGuardHome
+
+- name: Install AdGuardHome unit
+  ansible.builtin.template:
+    src: AdGuardHome.service.j2
+    dest: /etc/systemd/system/AdGuardHome.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart AdGuardHome
+
+- name: Ensure AdGuardHome is enabled and running
+  # in check mode on a new host the unit does not exist yet
+  when: not ansible_check_mode or dns_server_installed.rc | default(1) == 0
+  ansible.builtin.systemd_service:
+    name: AdGuardHome
+    state: started
+    enabled: true
+    daemon_reload: true

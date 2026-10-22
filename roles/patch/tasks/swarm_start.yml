@@ -1,0 +1,65 @@
+---
+# Swarm-down mode (patch_stop_swarm), after the last node reboot: start the
+# docker VMs HA holds stopped, manager first, then scale the recorded services
+# back and remove the record. Nothing to do when the swarm was not stopped.
+- name: Read the docker VMs
+  ansible.builtin.import_tasks: swarm_vm_ids.yml
+
+- name: Start the docker VMs
+  ansible.builtin.include_tasks: swarm_vm.yml
+  vars:
+    patch_swarm_vm_state: started
+    patch_swarm_held: "{{ patch_swarm_vms | dict2items | selectattr('value.hastate', 'eq', 'stopped') | map(attribute='key') | list }}"
+  loop: "{{ patch_swarm_stop_order | reverse | select('in', patch_swarm_held) | list }}"
+  loop_control:
+    loop_var: patch_swarm_vm
+
+- name: Read the record
+  ansible.builtin.slurp:
+    src: "{{ patch_swarm_record }}"
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_old
+  failed_when: false
+
+# In check mode the down play wrote no record; use what it picked
+- name: Pick the services to scale back
+  ansible.builtin.set_fact:
+    patch_swarm_apps: >-
+      {{ patch_swarm_old.content | b64decode | from_json if patch_swarm_old.content is defined
+         else patch_swarm_apps | default({}) }}
+
+- name: Show the scale-back
+  ansible.builtin.debug:
+    msg: "scale back ({{ patch_swarm_apps | length }}): {{ patch_swarm_apps }}"
+
+- name: Scale the app services back
+  ansible.builtin.command: >-
+    docker service scale --detach
+    {{ patch_swarm_apps | dict2items | map(attribute='key') | zip(patch_swarm_apps.values()) | map('join', '=') | join(' ') }}
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  changed_when: true
+  when: patch_swarm_apps | length > 0
+
+- name: Remove the record
+  ansible.builtin.file:
+    path: "{{ patch_swarm_record }}"
+    state: absent
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  when: patch_swarm_old.content is defined
+
+- name: Read swarm services
+  ansible.builtin.command: docker service ls --format '{{ "{{" }}.Name{{ "}}" }} {{ "{{" }}.Replicas{{ "}}" }}'
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_services
+  changed_when: false
+  check_mode: false
+
+- name: Report services below their replica count (they may still be starting; allow about 10 minutes)
+  ansible.builtin.debug:
+    msg: >-
+      {{ patch_swarm_services.stdout_lines
+         | reject('regex', ' (\d+)/\1( |$)') | list }}

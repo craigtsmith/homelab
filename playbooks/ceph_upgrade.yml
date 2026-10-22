@@ -1,0 +1,116 @@
+---
+# Ceph major upgrade, Proxmox's way (wiki "Ceph Squid to Tentacle"), no node
+# reboots. Plays run in order, each to the end before the next:
+#   check     every daemon on the old release, healthy, PVE 9.2+; disable mgr
+#             modules the new release removed; set noout
+#   repo      ceph.sources to the new release, dist-upgrade, one node at a time
+#             (patch role checks: no removals, no other majors)
+#   mon, mgr  restart per node, mons on every node first
+#   osd       restart per node, wait for every PG active+clean
+#   mds       stop standbys, restart the active MDS, start standbys
+#   finish    require-osd-release, unset noout, health
+# Select stages with --tags; a rerun skips daemons already on the new version.
+#
+#   ansible-playbook playbooks/ceph_upgrade.yml --check --diff --tags check,repo --limit pve3
+#   ansible-playbook playbooks/ceph_upgrade.yml --tags mon
+#
+# Afterwards set proxmox_node_ceph_repo and patch_majors in
+# group_vars/proxmox_nodes.yml to the new release.
+- name: Validate environment for the Ceph upgrade
+  import_playbook: common/validate_env.yml
+
+- name: Ceph upgrade check
+  hosts: proxmox_nodes
+  gather_facts: false
+  tags: [check]
+  vars:
+    patch_ceph_also_ignored: "{{ patch_ceph_major_ignored }}"
+  tasks:
+    - name: Check the cluster and set noout
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_major_check.yml
+        apply:
+          run_once: true
+
+- name: Ceph repository and packages
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: true
+  tags: [repo]
+  tasks:
+    - name: New Ceph repository and packages
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_major_packages.yml
+
+- name: Ceph mon restarts
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: false
+  tags: [mon]
+  vars:
+    patch_ceph_restart_daemons: [mon]
+    patch_ceph_also_ignored: "{{ patch_ceph_major_ignored }}"
+  tasks:
+    - name: Restart the mon
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_restart.yml
+
+- name: Ceph mgr restarts
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: false
+  tags: [mgr]
+  vars:
+    patch_ceph_restart_daemons: [mgr]
+    patch_ceph_also_ignored: "{{ patch_ceph_major_ignored }}"
+  tasks:
+    - name: Restart the mgr
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_restart.yml
+
+- name: Ceph OSD restarts
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: false
+  tags: [osd]
+  vars:
+    patch_ceph_also_ignored: "{{ patch_ceph_major_ignored }}"
+  tasks:
+    - name: Restart the OSDs
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_restart_osd.yml
+
+- name: Ceph MDS restarts
+  hosts: proxmox_nodes
+  gather_facts: false
+  tags: [mds]
+  vars:
+    patch_ceph_also_ignored: "{{ patch_ceph_major_ignored }}"
+  tasks:
+    - name: Restart the MDS daemons
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_restart_mds.yml
+        apply:
+          run_once: true
+
+- name: Ceph upgrade finish
+  hosts: proxmox_nodes
+  gather_facts: false
+  tags: [finish]
+  tasks:
+    - name: Require the new release and unset noout
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: ceph_major_finish.yml
+        apply:
+          run_once: true

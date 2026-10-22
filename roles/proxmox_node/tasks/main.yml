@@ -1,0 +1,153 @@
+---
+# Kernel command line, module and network changes take effect only after a
+# reboot or `ifreload -a`. This role never reboots or reloads networking.
+
+- name: Configure apt sources and apt hooks
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ proxmox_node_apt_files }}"
+
+- name: Configure the Ceph apt source
+  ansible.builtin.import_tasks: ceph_repo.yml
+
+- name: Remove obsolete apt source files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ proxmox_node_apt_absent }}"
+
+- name: Install subscription nag removal hook script
+  ansible.builtin.copy:
+    src: pve-remove-nag.sh
+    dest: /usr/local/bin/pve-remove-nag.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install utility packages
+  ansible.builtin.apt:
+    name: "{{ proxmox_node_packages }}"
+    state: present
+
+- name: Remove unwanted packages
+  ansible.builtin.apt:
+    name: "{{ proxmox_node_packages_absent }}"
+    state: absent
+    purge: true
+
+- name: Configure GRUB defaults
+  ansible.builtin.copy:
+    src: grub
+    dest: /etc/default/grub
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Update grub
+
+- name: Configure kernel modules
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: modules, dest: /etc/modules }
+    - { src: kvm_intel.conf, dest: /etc/modprobe.d/kvm_intel.conf }
+  notify: Update initramfs
+
+- name: Configure sysctl
+  ansible.builtin.copy:
+    src: sysctl.conf
+    dest: /etc/sysctl.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Remove obsolete files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ proxmox_node_files_absent }}"
+
+- name: Configure chrony
+  ansible.builtin.copy:
+    src: chrony.conf
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart chrony
+
+- name: Install NIC offload fix unit
+  ansible.builtin.copy:
+    src: disable-nic-offload-eno1.service
+    dest: /etc/systemd/system/disable-nic-offload-eno1.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd daemon
+
+- name: Flush handlers so the unit is known before enabling
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable NIC offload fix at boot
+  ansible.builtin.systemd_service:
+    name: disable-nic-offload-eno1.service
+    enabled: true
+
+- name: Configure /etc/hosts
+  ansible.builtin.template:
+    src: hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure network interfaces (applied on reboot or ifreload -a)
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure ansible user exists
+  ansible.builtin.user:
+    name: ansible
+    system: true
+    shell: /bin/bash
+    groups: sudo
+    append: true
+
+- name: Authorise the ansible user's key
+  ansible.posix.authorized_key:
+    user: ansible
+    key: "{{ proxmox_node_ansible_user_key }}"
+    exclusive: true
+  when: proxmox_node_ansible_user_key | length > 0
+
+- name: Allow passwordless sudo for ansible
+  ansible.builtin.copy:
+    src: sudoers-ansible
+    dest: /etc/sudoers.d/ansible
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: Mount NAS lab-backup share
+  ansible.posix.mount:
+    src: "{{ proxmox_node_lab_backup.src }}"
+    path: "{{ proxmox_node_lab_backup.path }}"
+    fstype: nfs
+    opts: "{{ proxmox_node_lab_backup.opts }}"
+    state: mounted
+
+- name: Daily CephFS snapshots
+  ansible.builtin.import_tasks: cephfs_snapshots.yml

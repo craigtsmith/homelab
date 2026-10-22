@@ -1,0 +1,5 @@
+---
+ansible_host: 192.168.100.11
+hostname: docker1
+vm_name: docker1
+kind: manager

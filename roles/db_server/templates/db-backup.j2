@@ -1,0 +1,48 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Dumps every PostgreSQL and MySQL database. The latest set stays in
+# {{ db_server_backup_dir }}/{postgresql,mysql} (picked up by the nightly PBS backup)
+# and is copied to the NAS slots hourly/<HH> and, at midnight, daily/<weekday>.
+set -euo pipefail
+
+local_dir={{ db_server_backup_dir }}
+nas_mount={{ db_server_backup_nas_mount }}
+nas_dir=$nas_mount/{{ db_server_backup_nas_path }}
+
+work=$(mktemp -d "$local_dir/.db-backup.XXXXXX")
+trap 'rm -rf "$work"' EXIT
+mkdir -m 0700 "$work/postgresql" "$work/mysql"
+
+runuser -u postgres -- pg_dumpall --globals-only > "$work/postgresql/globals.sql"
+for db in $(runuser -u postgres -- psql -XAtc \
+    "select datname from pg_database where datallowconn and datname <> 'template1' order by 1"); do
+  runuser -u postgres -- pg_dump -Fc "$db" > "$work/postgresql/$db.dump"
+  pg_restore --list "$work/postgresql/$db.dump" > /dev/null
+done
+
+for db in $(mysql -Nse 'show databases' | grep -Evx 'information_schema|performance_schema|sys|mysql'); do
+  mysqldump --single-transaction --routines --triggers --events --databases "$db" > "$work/mysql/$db.sql"
+done
+# Reloadable users and grants: caching_sha2 hashes only reload when printed as hex
+mysql -Nse "select concat(quote(user), '@', quote(host)) from mysql.user
+            where user not in ('root', 'mysql.infoschema', 'mysql.session', 'mysql.sys')" |
+  while read -r account; do
+    mysql -Ns -e "set print_identified_with_as_hex = on; show create user $account; show grants for $account" | sed 's/$/;/'
+  done > "$work/mysql/users.sql"
+
+for d in postgresql mysql; do
+  (cd "$work/$d" && sha256sum -- * > SHA256SUMS)
+  rm -rf "${local_dir:?}/$d.old"
+  [ -d "$local_dir/$d" ] && mv "$local_dir/$d" "$local_dir/$d.old"
+  mv "$work/$d" "$local_dir/$d"
+  rm -rf "${local_dir:?}/$d.old"
+done
+
+mountpoint -q "$nas_mount"
+slots=("hourly/$(date +%H)")
+[ "$(date +%H)" = 00 ] && slots+=("daily/$(date +%a)")
+for slot in "${slots[@]}"; do
+  mkdir -p "$nas_dir/$slot"
+  rsync -a --delete "$local_dir/postgresql" "$local_dir/mysql" "$nas_dir/$slot/"
+  date -Is > "$nas_dir/$slot/COMPLETED"
+done

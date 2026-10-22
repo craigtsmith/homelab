@@ -1,0 +1,15 @@
+---
+# Sets proxmox_guests_live_ids: the VMIDs of all guests in the cluster
+- name: List cluster guests
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/cluster/resources?type=vm"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+  register: proxmox_guests_resources
+  check_mode: false
+  no_log: true
+
+- name: Record live VMIDs
+  ansible.builtin.set_fact:
+    proxmox_guests_live_ids: "{{ proxmox_guests_resources.json.data | map(attribute='vmid') | list }}"

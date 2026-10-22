@@ -1,0 +1,29 @@
+#!/bin/bash
+# Back up the newest scheduled CephFS snapshot of each directory to PBS
+# (roles/cephfs_backup). PBS_REPOSITORY, PBS_PASSWORD and PBS_FINGERPRINT come
+# from /etc/cephfs-backup/pbs.env. Fails when a snapshot is missing or stale.
+set -euo pipefail
+
+mount={{ cephfs_backup_mount }}
+max_age=$(( {{ cephfs_backup_max_age_hours }} * 3600 ))
+status=0
+
+for dir in {{ cephfs_backup_dirs | join(' ') }}; do
+  # cephfs-snapshot (proxmox_node) names: scheduled-YYYY-MM-DD-HH_MM_SS_UTC
+  snap=$(find "$mount/$dir/.snap" -maxdepth 1 -name 'scheduled-*' -printf '%f\n' | sort | tail -1)
+  if [ -z "$snap" ]; then
+    echo "$dir: no scheduled snapshot" >&2; status=1; continue
+  fi
+  stamp=$(sed -E 's/^scheduled-([0-9-]{10})-([0-9]{2})_([0-9]{2})_([0-9]{2})_UTC$/\1 \2:\3:\4 UTC/' <<<"$snap")
+  age=$(( $(date +%s) - $(date -d "$stamp" +%s) ))
+  if [ "$age" -gt "$max_age" ]; then
+    echo "$dir: newest snapshot $snap is $(( age / 3600 )) h old" >&2; status=1; continue
+  fi
+  echo "$dir: backing up $snap"
+  proxmox-backup-client backup "$dir.pxar:$mount/$dir/.snap/$snap" \
+    --ns {{ cephfs_backup_pbs_namespace }} \
+    --backup-type host --backup-id "cephfs-$dir" \
+    --change-detection-mode metadata || status=1
+done
+
+exit "$status"

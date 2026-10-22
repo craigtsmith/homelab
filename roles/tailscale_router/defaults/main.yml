@@ -1,0 +1,18 @@
+---
+tailscale_router_codename: "{{ ansible_distribution_release }}"
+tailscale_router_routes:
+  - 192.168.100.0/24
+tailscale_router_accept_dns: true
+# Use subnet routes other nodes advertise (tailscale up --accept-routes)
+tailscale_router_accept_routes: false
+# UDP GRO forwarding on the uplink (tailscale.com/kb/1320); applies on kernel 6.2+ only
+tailscale_router_udp_gro: true
+tailscale_router_gro_iface: "{{ ansible_default_ipv4.interface }}"
+# tailscaled updates itself (AutoUpdate Check/Apply), so the package is not pinned
+tailscale_router_auto_update: true
+
+# Only read when the node is logged out (i.e. on rebuild). The live node was
+# logged in interactively as a user-owned machine with key expiry disabled in
+# the admin console; an auth-key login creates a new machine that needs the
+# same treatment (or a tagged key, which has no expiry by default).
+tailscale_router_authkey: "{{ lookup('community.general.onepassword', 'tailscale-authkey', field='credential', vault=op_vault) }}"

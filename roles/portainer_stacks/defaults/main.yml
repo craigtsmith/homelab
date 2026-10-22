@@ -1,0 +1,15 @@
+---
+# Portainer stacks on the swarm, rendered from stacks/swarm/<name>.yml.j2.
+# --check diffs each rendered file against Portainer's copy and compares the stack
+# env by hash (names only in the output). A real run updates the stacks that
+# differ through the API with pullImage false, so running image digests are kept
+# (AGENTS.md). A stack missing from Portainer fails the play; create it by hand.
+portainer_stacks_url: "https://portainer.{{ domain }}/api"
+portainer_stacks_api_key: "{{ lookup('community.general.onepassword', 'portainer-api', field='credential', vault=op_vault) }}"
+portainer_stacks_endpoint_id: 7
+portainer_stacks_dir: "{{ playbook_dir }}/../stacks/swarm"
+# Stack env is complete: a real run sets exactly these names
+# - { name: rustfs, env: { RUSTFS_ACCESS_KEY: "{{ lookup(...) }}" } }
+portainer_stacks: []
+# Limit to some stacks by name; empty means all
+portainer_stacks_only: []

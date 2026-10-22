@@ -1,0 +1,34 @@
+---
+pbs_server_apt_files:
+  - { src: apt/sources.list, dest: /etc/apt/sources.list }
+  - { src: apt/debian.sources, dest: /etc/apt/sources.list.d/debian.sources }
+  - { src: apt/proxmox.sources, dest: /etc/apt/sources.list.d/proxmox.sources }
+  - { src: apt/pbs-enterprise.sources, dest: /etc/apt/sources.list.d/pbs-enterprise.sources }
+  - { src: apt/pbs-test.sources, dest: /etc/apt/sources.list.d/pbs-test.sources }
+  - { src: apt/no-nag-script, dest: /etc/apt/apt.conf.d/no-nag-script }
+  - { src: apt/proxmox-zfs.pref, dest: /etc/apt/preferences.d/proxmox-zfs }
+
+# Datastore, prune and verify jobs. The datastore reuses the existing chunk
+# store on the NAS share.
+pbs_server_config_files:
+  - datastore.cfg
+  - prune.cfg
+  - verification.cfg
+
+pbs_server_root_email: "{{ lookup('community.general.onepassword', 'pbs-root', field='email', vault=op_vault) }}"
+
+pbs_server_mounts:
+  - { src: "192.168.1.50:/volume2/pbs-backup", path: /mnt/pbs-nas }
+  - { src: "192.168.1.50:/volume2/lab-backup", path: /mnt/lab-backup }
+pbs_server_mount_opts: rw,sync,hard
+
+# Datastore namespaces (created when missing)
+pbs_server_namespaces:
+  - { store: pbs-nas, ns: cephfs }
+
+# API tokens for client backups, each limited to one namespace
+# (DatastoreBackup on /datastore/<store>/<ns> for the user and the token). A token
+# whose secret is missing from token.shadow (new or rebuilt PBS) is generated
+# again, and its secret goes to the 1Password item, field `credential`.
+pbs_server_tokens:
+  - { user: cephfs-backup@pbs, name: util1, store: pbs-nas, ns: cephfs, item: pbs-cephfs-backup }

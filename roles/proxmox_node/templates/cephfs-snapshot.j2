@@ -1,0 +1,28 @@
+#!/bin/bash
+# Daily CephFS snapshots (roles/proxmox_node). Runs on every node at the same
+# time: the name holds only the date, so one node creates the snapshot and the
+# others find it. Fails when the mount is missing or no snapshot exists after.
+set -uo pipefail
+
+mount={{ proxmox_node_cephfs_mount }}
+name=scheduled-$(date -u +%F)-{{ proxmox_node_cephfs_snapshot_time | replace(':', '_') }}_UTC
+status=0
+
+if ! mountpoint -q "$mount"; then
+  pvesm status --storage {{ proxmox_node_cephfs_storage }} >/dev/null 2>&1   # activates (mounts) the storage
+  mountpoint -q "$mount" || { echo "$mount is not mounted" >&2; exit 1; }
+fi
+
+{% for s in proxmox_node_cephfs_snapshots %}
+snaps=$mount/{{ s.dir }}/.snap
+mkdir "$snaps/$name" 2>/dev/null && echo "{{ s.dir }}: created $name"
+if [ -d "$snaps/$name" ]; then
+  # oldest first; another node may remove the same one
+  find "$snaps" -maxdepth 1 -name 'scheduled-*' -printf '%f\n' | sort | head -n -{{ s.keep }} |
+    while read -r old; do rmdir "$snaps/$old" 2>/dev/null && echo "{{ s.dir }}: removed $old"; done
+else
+  echo "{{ s.dir }}: $name missing" >&2; status=1
+fi
+{% endfor %}
+
+exit "$status"

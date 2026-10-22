@@ -1,0 +1,11 @@
+---
+# Creates declared guests that are missing and reports config drift on the
+# rest. Existing guests are never modified.
+- name: Validate environment for Proxmox guests
+  import_playbook: common/validate_env.yml
+
+- name: Proxmox guests
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: proxmox_guests

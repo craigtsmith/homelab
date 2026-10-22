@@ -1,0 +1,48 @@
+---
+- name: Set image path
+  ansible.builtin.set_fact:
+    proxmox_guests_image_path: "{{ proxmox_guests_image_dir }}/{{ proxmox_guests_images[guest.image].url | basename }}"
+
+- name: Download cloud image on {{ guest.node }}
+  ansible.builtin.get_url:
+    url: "{{ proxmox_guests_images[guest.image].url }}"
+    checksum: "{{ proxmox_guests_images[guest.image].checksum }}"
+    dest: "{{ proxmox_guests_image_path }}"
+    mode: "0644"
+  delegate_to: "{{ guest.node }}"
+
+- name: Create template VM {{ guest.vmid }}
+  ansible.builtin.command: qm create {{ guest.vmid }} --name {{ guest.name }}
+  delegate_to: "{{ guest.node }}"
+  changed_when: true
+
+- name: Import cloud image as scsi0
+  ansible.builtin.command: >-
+    qm set {{ guest.vmid }} --scsi0
+    {{ guest.config.scsi0.split(':')[0] }}:0,import-from={{ proxmox_guests_image_path }}
+  delegate_to: "{{ guest.node }}"
+  changed_when: true
+
+- name: Resize scsi0
+  ansible.builtin.command: >-
+    qm resize {{ guest.vmid }} scsi0
+    {{ guest.config.scsi0 | regex_search('size=[^,]+') | regex_replace('^size=', '') }}
+  delegate_to: "{{ guest.node }}"
+  changed_when: true
+
+- name: Add cloud-init drive
+  ansible.builtin.command: qm set {{ guest.vmid }} --ide2 {{ guest.config.ide2.split(':')[0] }}:cloudinit
+  delegate_to: "{{ guest.node }}"
+  changed_when: true
+
+- name: Apply template config
+  ansible.builtin.command:
+    argv: [qm, set, "{{ guest.vmid }}", "--{{ item.key }}", "{{ item.value }}"]
+  loop: "{{ guest.config | dict2items | rejectattr('key', 'match', '^(scsi\\d+|ide2)$') | list }}"
+  delegate_to: "{{ guest.node }}"
+  changed_when: true
+
+- name: Convert to template
+  ansible.builtin.command: qm template {{ guest.vmid }}
+  delegate_to: "{{ guest.node }}"
+  changed_when: true

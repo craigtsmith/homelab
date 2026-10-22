@@ -1,0 +1,12 @@
+---
+# Copy to private.yml in this directory (gitignored) and fill in. Ansible does not
+# load this file: it skips the .example extension.
+domain: example.net
+appbox1_ansible_host: appbox1.example.appboxes.co
+appbox1_ansible_port: 22
+# Tailnet addresses
+appbox1_tailnet_ip: 100.64.0.10
+nas_tailnet_ip: 100.64.0.20
+# AdGuard client "Personal Devices" (dns_servers.yml): IPs, CIDRs or MACs
+dns_personal_device_ids:
+  - 192.168.1.10

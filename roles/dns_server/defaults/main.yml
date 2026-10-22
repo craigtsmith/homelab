@@ -1,0 +1,23 @@
+---
+# AdGuard Home from the GitHub release, pinned. checksums.txt of the release has the
+# sha256 of AdGuardHome_linux_amd64.tar.gz.
+dns_server_version: v0.107.79
+dns_server_checksum: sha256:c48f4a43000665484c5ec28177de11a004759b620dae8f77b2aabefc9ef3687f
+dns_server_url: https://github.com/AdguardTeam/AdGuardHome/releases/download/{{ dns_server_version }}/AdGuardHome_linux_amd64.tar.gz
+dns_server_dir: /opt/AdGuardHome
+
+# AdGuardHome.yaml is rendered from these. UI edits are drift: a run reverts them
+# unless they are promoted into the inventory first.
+dns_server_admin_user: admin
+dns_server_admin_password_hash: "{{ lookup('community.general.onepassword', 'adguard-admin', field='bcrypt', vault=op_vault) }}"
+dns_server_upstreams: []
+dns_server_bootstrap: []
+dns_server_upstream_mode: parallel
+dns_server_ratelimit: 20
+# {id, name, url, enabled}; ids are AdGuard's (filter cache files are data/filters/<id>.txt)
+dns_server_filters: []
+dns_server_user_rules: []
+# {domain, answer}
+dns_server_rewrites: []
+# {name, ids, uid, upstreams, upstreams_cache_enabled, filtering_enabled, ignore_querylog}
+dns_server_clients: []

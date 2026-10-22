@@ -1,0 +1,5 @@
+---
+ansible_host: 192.168.100.31
+hostname: docker3
+vm_name: docker3
+kind: worker

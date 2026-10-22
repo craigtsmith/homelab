@@ -1,0 +1,3 @@
+---
+# Connection defaults for Ansible-built Debian LXCs (root key injected at create)
+ansible_user: root

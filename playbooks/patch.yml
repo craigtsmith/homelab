@@ -1,0 +1,109 @@
+---
+# Monthly upgrade and reboot, one host at a time (docs/operations.md, "Patching").
+# unattended-upgrades applies security updates daily and never reboots; this
+# playbook brings everything else and the reboots.
+#
+# Plays run in order, each to the end before the next: guest packages, node
+# packages, Ceph mon/mgr restarts, node reboots, guest reboots. Select a stage
+# with --tags packages | ceph_restart | reboot and a host with --limit.
+#
+#   ansible-playbook playbooks/patch.yml --check --diff --limit docker3
+#   ansible-playbook playbooks/patch.yml --tags packages --limit pve3
+- name: Validate environment for patching
+  import_playbook: common/validate_env.yml
+
+- name: Guest packages
+  hosts: pbs_servers:ubuntu_vms:debian_lxcs
+  serial: 1
+  become: "{{ ansible_user != 'root' }}"
+  gather_facts: true
+  tags: [packages]
+  tasks:
+    - name: Upgrade packages
+      ansible.builtin.import_role:
+        name: patch
+        tasks_from: packages.yml
+
+- name: Node packages
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: true
+  tags: [packages]
+  tasks:
+    - name: Upgrade packages
+      ansible.builtin.import_role:
+        name: patch
+        tasks_from: packages.yml
+
+- name: Ceph mon and mgr restarts
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: false
+  tags: [ceph_restart]
+  tasks:
+    - name: Restart outdated Ceph mons and mgrs
+      ansible.builtin.import_role:
+        name: patch
+        tasks_from: ceph_restart.yml
+
+# -e patch_stop_swarm=true: runs once, when a node in the play needs a reboot
+- name: Swarm down
+  hosts: proxmox_nodes
+  order: reverse_inventory
+  gather_facts: true
+  tags: [reboot, swarm_stop]
+  tasks:
+    - name: Decide on the reboots
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: reboot_needed.yml
+      when: patch_stop_swarm | bool
+
+    - name: Stop the swarm
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: swarm_stop.yml
+      when:
+        - patch_stop_swarm | bool
+        - inventory_hostname == ansible_play_hosts[0]
+        - ansible_play_hosts | map('extract', hostvars, 'patch_reboot_needed') | select | list | length > 0
+
+- name: Node reboots
+  hosts: proxmox_nodes
+  serial: 1
+  order: reverse_inventory
+  gather_facts: true
+  tags: [reboot]
+  tasks:
+    - name: Reboot the node
+      ansible.builtin.import_role:
+        name: patch
+        tasks_from: node_reboot.yml
+
+- name: Swarm up
+  hosts: proxmox_nodes
+  order: reverse_inventory
+  gather_facts: false
+  tags: [reboot, swarm_start]
+  tasks:
+    - name: Start the swarm
+      ansible.builtin.include_role:
+        name: patch
+        tasks_from: swarm_start.yml
+      when:
+        - patch_stop_swarm | bool
+        - inventory_hostname == ansible_play_hosts[0]
+
+- name: Guest reboots
+  hosts: pbs_servers:ubuntu_vms:debian_lxcs
+  serial: 1
+  become: "{{ ansible_user != 'root' }}"
+  gather_facts: true
+  tags: [reboot]
+  tasks:
+    - name: Reboot the guest
+      ansible.builtin.import_role:
+        name: patch
+        tasks_from: guest_reboot.yml

@@ -1,0 +1,96 @@
+---
+# Users, namespaces, backup tokens and their ACLs, per object through the CLI
+# (user.cfg and acl.cfg are written by PBS, never copied).
+- name: Read users
+  ansible.builtin.command: proxmox-backup-manager user list --output-format json
+  register: pbs_server_users_live
+  changed_when: false
+  check_mode: false
+
+- name: Set the root@pam notification email
+  ansible.builtin.command: proxmox-backup-manager user update root@pam --email {{ pbs_server_root_email }}
+  when: >-
+    pbs_server_users_live.stdout | from_json | selectattr('userid', 'eq', 'root@pam')
+    | map(attribute='email') | first | default('') != pbs_server_root_email
+  changed_when: true
+  no_log: true
+
+- name: Create missing users
+  ansible.builtin.command: proxmox-backup-manager user create {{ item }}
+  loop: "{{ pbs_server_tokens | map(attribute='user') | unique }}"
+  when: item not in pbs_server_users_live.stdout | from_json | map(attribute='userid')
+  changed_when: true
+
+- name: Read namespaces
+  ansible.builtin.command: proxmox-backup-debug api get /admin/datastore/{{ item }}/namespace --output-format json
+  loop: "{{ pbs_server_namespaces | map(attribute='store') | unique }}"
+  register: pbs_server_ns_live
+  changed_when: false
+  check_mode: false
+
+- name: Pick the missing namespaces
+  ansible.builtin.set_fact:
+    pbs_server_ns_missing: "{{ pbs_server_ns_missing | default([]) + [item.store ~ '/' ~ item.ns] }}"
+  loop: "{{ pbs_server_namespaces }}"
+  vars:
+    pbs_server_ns_names: >-
+      {{ pbs_server_ns_live.results | selectattr('item', 'eq', item.store) | map(attribute='stdout')
+         | first | from_json | map(attribute='ns') | list }}
+  when: item.ns not in pbs_server_ns_names
+
+- name: Create missing namespaces
+  ansible.builtin.command: >-
+    proxmox-backup-debug api create /admin/datastore/{{ item | dirname }}/namespace --name {{ item | basename }} --output-format json
+  loop: "{{ pbs_server_ns_missing | default([]) }}"
+  changed_when: true
+
+- name: Read token secrets
+  ansible.builtin.slurp:
+    src: /etc/proxmox-backup/token.shadow
+  register: pbs_server_token_shadow
+  no_log: true
+
+# The CLI tasks do not run in check mode; this reports what they create
+- name: Report missing PBS objects
+  ansible.builtin.debug:
+    msg: "{{ pbs_server_missing if pbs_server_missing | length > 0 else 'PBS users, namespaces and tokens present' }}"
+  changed_when: pbs_server_missing | length > 0
+  vars:
+    pbs_server_have_tokens: "{{ pbs_server_token_shadow.content | b64decode | from_json | list }}"
+    pbs_server_token_ids: "{{ pbs_server_tokens | map(attribute='user') | zip(pbs_server_tokens | map(attribute='name')) | map('join', '!') | list }}"
+    pbs_server_missing: >-
+      {{ pbs_server_tokens | map(attribute='user') | unique | reject('in', pbs_server_users_live.stdout | from_json | map(attribute='userid') | list)
+         | map('regex_replace', '^', 'user ') | list
+         + pbs_server_ns_missing | default([]) | map('regex_replace', '^', 'namespace ') | list
+         + pbs_server_token_ids | reject('in', pbs_server_have_tokens) | map('regex_replace', '^', 'token ') | list }}
+
+- name: Generate the missing tokens
+  ansible.builtin.include_tasks: token.yml
+  loop: "{{ pbs_server_tokens }}"
+  loop_control:
+    loop_var: pbs_server_token
+    label: "{{ pbs_server_token.user }}!{{ pbs_server_token.name }}"
+  when: pbs_server_token.user ~ '!' ~ pbs_server_token.name not in pbs_server_token_shadow.content | b64decode | from_json
+
+- name: Read ACLs
+  ansible.builtin.command: proxmox-backup-manager acl list --output-format json
+  register: pbs_server_acl_live
+  changed_when: false
+  check_mode: false
+
+# Token privileges are the intersection of the user's and the token's
+- name: Grant DatastoreBackup on the namespace
+  ansible.builtin.command: >-
+    proxmox-backup-manager acl update {{ pbs_server_acl_path }} DatastoreBackup
+    --auth-id {{ pbs_server_acl_id }} --propagate true
+  loop: "{{ pbs_server_tokens | product(['user', 'token']) | list }}"
+  loop_control:
+    label: "{{ pbs_server_acl_id }} {{ pbs_server_acl_path }}"
+  vars:
+    pbs_server_acl_path: /datastore/{{ item.0.store }}/{{ item.0.ns }}
+    pbs_server_acl_id: "{{ item.0.user ~ ('!' ~ item.0.name if item.1 == 'token' else '') }}"
+  when: >-
+    pbs_server_acl_live.stdout | from_json | selectattr('path', 'eq', pbs_server_acl_path)
+    | selectattr('ugid', 'eq', pbs_server_acl_id) | selectattr('roleid', 'eq', 'DatastoreBackup')
+    | list | length == 0
+  changed_when: true

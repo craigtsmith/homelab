@@ -1,0 +1,6 @@
+Types: deb
+URIs: {{ 'https://enterprise.proxmox.com' if proxmox_node_ceph_repo.component == 'enterprise' else 'http://download.proxmox.com' }}/debian/ceph-{{ proxmox_node_ceph_repo.release }}
+Suites: trixie
+Components: {{ proxmox_node_ceph_repo.component }}
+Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+Enabled: {{ proxmox_node_ceph_repo.enabled | ternary('true', 'false') }}

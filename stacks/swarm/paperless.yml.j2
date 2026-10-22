@@ -1,0 +1,85 @@
+version: "3.7"
+
+networks:
+  traefik-public:
+    external: true
+
+services:
+  webserver:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    depends_on:
+      - gotenberg
+      - tika
+    ports:
+      - "8011:8000"
+    volumes:
+      - /mnt/nas-paperless/data:/usr/src/paperless/data
+      - /mnt/nas-paperless/media:/usr/src/paperless/media
+      - /mnt/nas-paperless/export:/usr/src/paperless/export
+      - /mnt/nas-paperless/consume:/usr/src/paperless/consume
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.paperless.rule=Host(`paperless.{{ domain }}`)"
+        - "traefik.http.services.paperless.loadbalancer.server.port=8000"
+        - "traefik.swarm.network=traefik-public"
+    environment:
+      PAPERLESS_URL: https://paperless.{{ domain }}
+      # required since v3; stack env from 1Password paperless-secret-key
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      # Database configuration
+      # PAPERLESS_DBHOST: db1.{{ domain }}
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: "192.168.100.22"
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DBPASS}
+      PAPERLESS_REDIS: redis://db1.{{ domain }}:6379/1
+
+      # OCR and Language settings
+      PAPERLESS_OCR_LANGUAGE: eng+nld
+      PAPERLESS_OCR_LANGUAGES: nld
+      # PAPERLESS_OCR_MODE: redo
+
+      # Document organization
+      PAPERLESS_CONSUMER_RECURSIVE: 1
+      PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: 1
+      # v3 name; the consume dir is NFS, which has no inotify
+      PAPERLESS_CONSUMER_POLLING_INTERVAL: 10
+
+      # Tika and Gotenberg configuration
+      PAPERLESS_TIKA_ENABLED: 1
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+
+      # Security (basic setup for local network)
+      # PAPERLESS_ALLOWED_HOSTS: "*"
+      # PAPERLESS_CORS_ALLOWED_HOSTS: "*"
+
+      # Performance
+      PAPERLESS_WORKER_TIMEOUT: 1800
+      PAPERLESS_TASK_WORKERS: 4
+      PAPERLESS_WEBSERVER_WORKERS: 4
+
+  gotenberg:
+    image: docker.io/gotenberg/gotenberg:8.25
+    restart: unless-stopped
+    networks:
+      - traefik-public
+    # The gotenberg chromium route is used to convert .eml files. We do not
+    # want to allow external content like tracking pixels or even javascript.
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=file:///tmp/.*"
+
+  tika:
+    # the version paperless pins in its own compose files (v3.3.3)
+    image: docker.io/apache/tika:3.3.1.0
+    restart: unless-stopped
+    networks:
+      - traefik-public

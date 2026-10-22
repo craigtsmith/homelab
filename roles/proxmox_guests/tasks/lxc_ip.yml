@@ -1,0 +1,26 @@
+---
+# Waits for an LXC's eth0 and returns its first 192.168.x IPv4 address
+- name: Wait for LXC network info
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_lxc_node }}/lxc/{{ proxmox_guests_lxc_vmid }}/interfaces"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+    status_code: [200, 500]
+  register: proxmox_guests_lxc_net
+  until: >-
+    proxmox_guests_lxc_net.status == 200
+    and (proxmox_guests_lxc_net.json.data | default([], true) | map(attribute='ip-addresses', default=[]) | flatten
+         | selectattr('ip-address-type', 'eq', 'inet') | map(attribute='ip-address')
+         | select('match', '^192\.168\.') | list | length) > 0
+  retries: 30
+  delay: 5
+  check_mode: false
+  no_log: true
+
+- name: Record LXC IP
+  ansible.builtin.set_fact:
+    proxmox_guests_lxc_ip: >-
+      {{ proxmox_guests_lxc_net.json.data | map(attribute='ip-addresses', default=[]) | flatten
+         | selectattr('ip-address-type', 'eq', 'inet') | map(attribute='ip-address')
+         | select('match', '^192\.168\.') | first }}

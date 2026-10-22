@@ -1,0 +1,48 @@
+---
+# docker_host_join_swarm=false leaves a new manager outside any swarm, e.g. before
+# its swarm state is restored from the old manager
+- name: Initialise Docker Swarm
+  ansible.builtin.command: docker swarm init --advertise-addr {{ ansible_default_ipv4.address }}
+  when:
+    - docker_host_join_swarm | bool
+    - docker_host_swarm_state.stdout != 'active'
+  changed_when: true
+
+# Create-only: an existing directory keeps its owner and mode (copied at cutover)
+- name: Create Portainer data directory  # noqa: risky-file-permissions
+  ansible.builtin.file:
+    path: "{{ docker_host_portainer_data_path }}"
+    state: directory
+
+- name: Write Portainer stack file
+  ansible.builtin.template:
+    src: portainer-stack.yml.j2
+    dest: "{{ docker_host_stack_dir }}/portainer-agent-traefik-stack.yml"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Write deploy-portainer helper
+  ansible.builtin.copy:
+    src: deploy-portainer
+    dest: "{{ docker_host_stack_dir }}/deploy-portainer"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: List Swarm stacks
+  ansible.builtin.command: docker stack ls --format '{{ "{{" }} .Name {{ "}}" }}'
+  register: docker_host_stacks
+  changed_when: false
+  check_mode: false
+  when: docker_host_swarm_state.stdout == 'active'
+
+- name: Deploy Portainer stack when absent
+  community.docker.docker_stack:
+    name: "{{ docker_host_portainer_stack }}"
+    compose:
+      - "{{ docker_host_stack_dir }}/portainer-agent-traefik-stack.yml"
+    state: present
+  when:
+    - docker_host_join_swarm | bool
+    - docker_host_portainer_stack not in (docker_host_stacks.stdout_lines | default([]))

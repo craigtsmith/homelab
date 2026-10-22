@@ -1,0 +1,11 @@
+---
+# Security updates only, never a reboot. Everything else (point releases,
+# Proxmox, Docker, pgdg, MySQL) waits for playbooks/patch.yml.
+unattended_upgrades_origins: "{{ unattended_upgrades_security_origins[ansible_distribution] }}"
+unattended_upgrades_security_origins:
+  Debian:
+    - origin=Debian,codename=${distro_codename}-security,label=Debian-Security
+  Ubuntu:
+    - origin=Ubuntu,archive=${distro_codename}-security,label=Ubuntu
+    - origin=UbuntuESMApps,archive=${distro_codename}-apps-security
+    - origin=UbuntuESM,archive=${distro_codename}-infra-security

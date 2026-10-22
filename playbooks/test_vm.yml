@@ -1,0 +1,133 @@
+---
+# Converge roles on a throwaway Ubuntu 24.04 VM cloned from the noble template.
+#
+#   ansible-playbook playbooks/test_vm.yml -e test_vmid=801 \
+#     -e '{"test_groups": ["ubuntu_vms", "util_servers"], "test_roles": ["ubuntu_vm", "ceph_client", "util_server"]}'
+#
+# -e test_as=util1 converges the VM as that host: its groups (group_vars) and
+# host_vars apply, except identity and address vars.
+#
+# The VM gets a DHCP address (read back through the guest agent) and is
+# destroyed at the end unless -e test_keep=true.
+- name: Validate environment for test VMs
+  import_playbook: common/validate_env.yml
+
+- name: Create test VM
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_node: pve3
+    test_groups: "{{ hostvars[test_as].group_names if test_as is defined else ['ubuntu_vms'] }}"
+    # -e '{"test_config": {...}}' overrides keys, e.g. net0 or cores to match a real guest
+    test_vm_config:
+      scsi0: ceph_rbd:test,size=32G
+      ide2: ceph_rbd:cloudinit
+      cores: "2"
+      memory: "4096"
+      cicustom: user=ceph_fs:snippets/user-noble.yml
+      ipconfig0: ip=dhcp
+      onboot: "0"
+      tags: test
+  tasks:
+    - name: Check test_as is an inventory host
+      ansible.builtin.assert:
+        that: test_as in groups['all']
+        fail_msg: "test_as={{ test_as }} is not in the inventory"
+      when: test_as is defined
+
+    - name: Check test VMID is in the test range
+      ansible.builtin.assert:
+        that:
+          - test_vmid is defined
+          - test_vmid | int >= proxmox_guests_test_range[0]
+          - test_vmid | int <= proxmox_guests_test_range[1]
+        fail_msg: "Set -e test_vmid=800..899"
+
+    - name: Clone test VM from the 24.04 template
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: clone.yml
+      vars:
+        guest:
+          vmid: "{{ test_vmid | int }}"
+          name: test-{{ test_vmid }}
+          node: "{{ test_node }}"
+          clone_from: "{{ proxmox_guests_templates_noble[test_node] }}"
+          start: true
+          config: "{{ test_vm_config | combine(test_config | default({})) }}"
+
+    - name: Wait for the test VM address
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: agent_ip.yml
+      vars:
+        proxmox_guests_agent_node: "{{ test_node }}"
+        proxmox_guests_agent_vmid: "{{ test_vmid }}"
+
+    - name: Add test VM to the inventory
+      ansible.builtin.add_host:
+        name: test-{{ test_vmid }}
+        ansible_host: "{{ proxmox_guests_agent_ip }}"
+        ansible_user: serveradmin
+        ansible_ssh_common_args: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+        groups: "{{ ['test_vms'] + test_groups }}"
+        test_node: "{{ test_node }}"
+        test_as: "{{ test_as | default(omit) }}"
+        # NAS exports may not allow DHCP clients and hard NFS mounts hang;
+        # opt in with -e test_mounts=true
+        ubuntu_vm_mounts: "{{ omit if (test_mounts | default(false) | bool) else [] }}"
+
+- name: Converge roles on the test VM
+  hosts: test_vms
+  become: true
+  gather_facts: false
+  vars:
+    test_roles: [ubuntu_vm]
+    # never copied from test_as host_vars
+    test_as_skip_vars: "{{ ['ansible_host', 'hostname', 'vm_name'] + ([] if (test_mounts | default(false) | bool) else ['ubuntu_vm_mounts']) }}"
+  tasks:
+    - name: Wait for SSH
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+      become: false
+
+    - name: Check passwordless sudo
+      ansible.builtin.command: sudo -n true
+      become: false
+      changed_when: false
+
+    - name: Wait for cloud-init to finish
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      failed_when: false
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+    - name: Apply host_vars of {{ test_as | default('no host') }}
+      ansible.builtin.set_fact:
+        "{{ item.key }}": "{{ item.value }}"
+      loop: >-
+        {{ (lookup('ansible.builtin.file', hostvars[test_as].inventory_dir ~ '/host_vars/' ~ test_as ~ '.yml')
+            | from_yaml | dict2items) if test_as is defined else [] }}
+      loop_control:
+        label: "{{ item.key }}"
+      when: item.key not in test_as_skip_vars
+
+    - name: Apply roles
+      ansible.builtin.include_role:
+        name: "{{ item }}"
+      loop: "{{ test_roles }}"
+
+- name: Destroy test VM
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Destroy test VM
+      ansible.builtin.include_role:
+        name: proxmox_guests
+        tasks_from: destroy.yml
+      vars:
+        proxmox_guests_destroy_vmid: "{{ test_vmid }}"
+        proxmox_guests_destroy_node: "{{ test_node | default('pve3') }}"
+      when: not (test_keep | default(false) | bool)

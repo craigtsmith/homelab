@@ -1,0 +1,40 @@
+---
+- name: Install the HWE kernel
+  ansible.builtin.apt:
+    name: "{{ ceph_client_kernel_package }}"
+    state: present
+
+- name: Ensure /etc/ceph exists
+  ansible.builtin.file:
+    path: /etc/ceph
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install CephFS client key
+  ansible.builtin.copy:
+    content: "{{ ceph_client_key }}"
+    dest: "{{ ceph_client_keyring }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Add CephFS automount to fstab
+  ansible.posix.mount:
+    src: "{{ ceph_client_mount_src }}"
+    path: "{{ ceph_client_mount_path }}"
+    fstype: ceph
+    opts: "{{ ceph_client_mount_opts }}"
+    dump: "0"
+    passno: "2"
+    state: present
+
+# cloud-init writes the same fstab line after boot, so the unit is not
+# generated until a daemon-reload
+- name: Start the CephFS automount without a reboot
+  ansible.builtin.systemd_service:
+    name: "{{ ceph_client_automount }}"
+    state: started
+    daemon_reload: true

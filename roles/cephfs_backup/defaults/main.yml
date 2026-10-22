@@ -1,0 +1,32 @@
+---
+# Nightly backup of CephFS directories to PBS (backlog 9c, craig 2026-10-17).
+# The nodes snapshot each directory daily (proxmox_node, cephfs-snapshot.timer);
+# this host backs up the newest scheduled snapshot read-only, so its cephx user
+# needs no snapshot right. The apps keep running; the copy is crash-consistent.
+
+# Directories under the CephFS mount (ceph_client_mount_path), one PBS host
+# backup each: <namespace>/host/cephfs-<dir>
+cephfs_backup_dirs: [docker]
+cephfs_backup_mount: "{{ ceph_client_mount_path | default('/mnt/cephfs') }}"
+# A snapshot older than this fails the run (no snapshot for a day); a late
+# catch-up run (Persistent=true) still backs up the newest one
+cephfs_backup_max_age_hours: 26
+cephfs_backup_on_calendar: "*-*-* 03:30:00"
+
+# PBS: token cephfs-backup@pbs!util1 may only back up into this namespace
+# (pbs_server_tokens). Prune and verify come from the datastore's jobs.
+cephfs_backup_pbs_host: "{{ hostvars[groups['pbs_servers'][0]].ansible_host }}"
+cephfs_backup_pbs_datastore: pbs-nas
+cephfs_backup_pbs_namespace: cephfs
+cephfs_backup_pbs_auth_id: cephfs-backup@pbs!{{ inventory_hostname }}
+cephfs_backup_pbs_secret: "{{ lookup('community.general.onepassword', 'pbs-cephfs-backup', field='credential', vault=op_vault) }}"
+# proxmox-backup-manager cert info on pbs; not a secret
+cephfs_backup_pbs_fingerprint: "18:1b:19:c3:5f:d4:9f:bf:f3:08:d4:f1:9b:bc:08:21:39:61:ee:b4:8d:53:20:28:e9:2a:f8:e6:c0:9e:98:b5"
+
+# Proxmox's statically linked client (no dependency on Debian libraries), from
+# the trixie pbs-client repo. The pin admits only this package from it.
+cephfs_backup_repo_url: http://download.proxmox.com/debian/pbs-client
+cephfs_backup_repo_suite: trixie
+cephfs_backup_keyring_url: https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg
+cephfs_backup_keyring_checksum: sha256:136673be77aba35dcce385b28737689ad64fd785a797e57897589aed08db6e45
+cephfs_backup_package: proxmox-backup-client-static

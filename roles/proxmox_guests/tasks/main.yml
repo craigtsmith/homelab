@@ -1,0 +1,25 @@
+---
+- name: Write cloud-init user snippets
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ proxmox_guests_snippet_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ proxmox_guests_snippets }}"
+  delegate_to: "{{ proxmox_guests_manager }}"
+  no_log: true
+
+- name: List cluster guests
+  ansible.builtin.include_tasks: list.yml
+
+- name: Report drift on existing guests
+  ansible.builtin.include_tasks: drift.yml
+  when: proxmox_guests | selectattr('vmid', 'in', proxmox_guests_live_ids) | list | length > 0
+
+- name: Create missing guests
+  ansible.builtin.include_tasks: create.yml
+  loop: "{{ proxmox_guests | rejectattr('vmid', 'in', proxmox_guests_live_ids) | list }}"
+  loop_control:
+    loop_var: guest
+    label: "{{ guest.vmid }} {{ guest.name }}"

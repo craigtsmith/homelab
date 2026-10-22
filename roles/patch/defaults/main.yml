@@ -1,0 +1,72 @@
+---
+# Monthly upgrade and reboot (playbooks/patch.yml). Everything here runs one
+# host at a time; nothing reboots unless the reboot tasks are run.
+
+# Majors a dist-upgrade may install. A candidate with another major stops the
+# run: a major upgrade (PVE 10, Ceph tentacle, PBS 5) is its own project.
+patch_majors: {}
+
+# Packages a dist-upgrade may remove; any other removal stops the run.
+patch_allowed_removals: []
+
+# Purged after the upgrade when installed (the purge is simulated first and
+# must remove nothing else).
+patch_purge: []
+
+# auto: reboot when /var/run/reboot-required exists or a newer kernel is in
+# /boot; always; never
+patch_reboot: auto
+
+# Guests a node reboot does not move (docker VMs: drained in the swarm, shut
+# down, started again on the same node). Every other running guest moves with
+# HA node maintenance and comes back by its node-affinity rule.
+patch_ride_guests: "{{ groups['docker_hosts'] }}"
+
+# Ceph health checks that do not block. None since the cephx migration to
+# aes256k finished (2026-10-19, HEALTH_OK).
+patch_ceph_ignored_checks: []
+
+# Daemons --tags ceph_restart restarts per node. Ceph's order is every mon, then
+# every mgr: run once with [mon], then with [mgr].
+patch_ceph_restart_daemons: [mon, mgr]
+
+# Waits: retries x 10 s
+patch_wait_retries: 90
+
+# Swarm commands run on the manager (docker_host_manager of the docker hosts)
+patch_swarm_manager: "{{ hostvars[groups['docker_hosts'][0]].docker_host_manager }}"
+
+# Swarm-down mode for the node reboots (craig's way for the first run,
+# 2026-10-16): before the first node reboot the app services scale to 0 and the
+# docker VMs stop through HA, workers first; after the last reboot the VMs start,
+# manager first, and the services scale back to their recorded counts. Apps are
+# down for the whole node run (42 min on 2026-10-16). false: the docker VMs ride
+# (patch_ride_guests) and the swarm stays up on the other two nodes.
+patch_stop_swarm: false
+
+# Docker VMs the swarm-down mode stops and starts (inventory name = VM name)
+patch_swarm_hosts: "{{ groups['docker_hosts'] }}"
+patch_swarm_stop_order: "{{ patch_swarm_hosts | reject('eq', patch_swarm_manager) | reverse | list + [patch_swarm_manager] }}"
+
+# Stacks (regexes) whose services keep running. portainer-update-* are finished
+# updater jobs: scaling one back to 1 would run the update again.
+patch_swarm_keep_stacks: [portainer-traefik, rustfs, portainer-update-.*]
+
+# Replica counts recorded on the manager before the scale-down; removed after
+# the scale-back
+patch_swarm_record: /root/patch-swarm-replicas.json
+
+# Ceph major upgrade (playbooks/ceph_upgrade.yml): release names as in
+# `ceph versions` and `require-osd-release`
+# Last run: squid to tentacle, 2026-10-17/19
+patch_ceph_major_from: squid
+patch_ceph_major_to: tentacle
+patch_ceph_major_repo: {release: "{{ patch_ceph_major_to }}", component: no-subscription, enabled: true}
+# Majors the upgrade may install; anything else on a new major stops it
+patch_ceph_major_majors: {pve-manager: "9", ceph-common: "20"}
+# mgr modules the new release removed (Tentacle: restful, zabbix)
+patch_ceph_major_disable_modules: [restful, zabbix]
+patch_ceph_fs: cephfs
+# Health checks that do not block while the upgrade runs: noout, and the
+# require_osd_release warning between the last OSD restart and the finish
+patch_ceph_major_ignored: [OSDMAP_FLAGS, OSD_UPGRADE_FINISHED]

@@ -1,0 +1,31 @@
+---
+- name: Wait for the swarm node to be Ready, {{ patch_swarm_node }}
+  ansible.builtin.command: docker node inspect {{ patch_swarm_node }}.{{ domain }} --format '{{ "{{" }}.Status.State{{ "}}" }}'
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_state
+  changed_when: false
+  until: patch_swarm_state.rc == 0 and patch_swarm_state.stdout == 'ready'
+  retries: "{{ patch_wait_retries }}"
+  delay: 10
+  when: not ansible_check_mode
+
+- name: Set the swarm node active, {{ patch_swarm_node }}
+  ansible.builtin.command: docker node update --availability active {{ patch_swarm_node }}.{{ domain }}
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  changed_when: true
+
+- name: Read swarm services
+  ansible.builtin.command: docker service ls --format '{{ "{{" }}.Name{{ "}}" }} {{ "{{" }}.Replicas{{ "}}" }}'
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_services
+  changed_when: false
+  check_mode: false
+
+- name: Report services below their replica count (they may still be starting)
+  ansible.builtin.debug:
+    msg: >-
+      {{ patch_swarm_services.stdout_lines
+         | reject('regex', ' (\d+)/\1( |$)') | list }}

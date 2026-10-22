@@ -1,0 +1,13 @@
+{% for r in proxmox_guests_live.results %}
+{%   set live = r.json.data %}
+{%   set spec = r.item.config %}
+{%   for k in (spec.keys() | list + live.keys() | list) | unique | sort %}
+{%     if k not in proxmox_guests_volatile_keys %}
+{%       set a = (spec[k] | default('<absent>') | string).rstrip() %}
+{%       set b = (live[k] | default('<absent>') | string).rstrip() %}
+{%       if a != b %}
+- "{{ r.item.vmid }} {{ r.item.name }} {{ k }}: declared={{ a | replace('"', "'") }} live={{ b | replace('"', "'") }}"
+{%       endif %}
+{%     endif %}
+{%   endfor %}
+{% endfor %}

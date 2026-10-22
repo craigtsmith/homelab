@@ -1,0 +1,82 @@
+---
+# One guest: HA resource, then its node-affinity rule. The API rejects a second
+# node-affinity rule for a resource, so a rule under another ID is deleted
+# first. Removing a non-strict rule does not move the guest.
+- name: Set live HA state for {{ guest.name }}
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_ha_res: "{{ proxmox_cluster_config_ha_live_resources | selectattr('sid', 'eq', guest.sid) | first | default({}) }}"
+    proxmox_cluster_config_ha_others: >-
+      {{ proxmox_cluster_config_ha_live_rules | selectattr('type', 'eq', 'node-affinity')
+         | rejectattr('rule', 'eq', guest.name ~ '-affinity')
+         | selectattr('resources', 'search', '(^|,)' ~ guest.sid ~ '(,|$)') | list }}
+
+- name: Refuse to delete a rule shared with other resources
+  ansible.builtin.assert:
+    that: proxmox_cluster_config_ha_others | rejectattr('resources', 'eq', guest.sid) | list | length == 0
+    fail_msg: >-
+      {{ proxmox_cluster_config_ha_others | map(attribute='rule') | join(', ') }} also hold other
+      resources; split them by hand first
+    quiet: true
+
+# uri has no check mode: in --check these are skipped and the report shows the change
+- name: Add HA resource {{ guest.sid }}
+  ansible.builtin.uri:
+    url: "{{ proxmox_cluster_config_api_url }}/cluster/ha/resources"
+    method: POST
+    headers:
+      Authorization: "{{ proxmox_cluster_config_api_auth_header }}"
+    body_format: json
+    body: { sid: "{{ guest.sid }}", state: "{{ guest.state }}" }
+    validate_certs: false
+  delegate_to: localhost
+  changed_when: true
+  no_log: true
+  when: proxmox_cluster_config_ha_res | length == 0
+
+- name: Set HA resource state {{ guest.sid }}
+  ansible.builtin.uri:
+    url: "{{ proxmox_cluster_config_api_url }}/cluster/ha/resources/{{ guest.sid }}"
+    method: PUT
+    headers:
+      Authorization: "{{ proxmox_cluster_config_api_auth_header }}"
+    body_format: json
+    body: { state: "{{ guest.state }}" }
+    validate_certs: false
+  delegate_to: localhost
+  changed_when: true
+  no_log: true
+  when: proxmox_cluster_config_ha_res | length > 0 and proxmox_cluster_config_ha_res.state != guest.state
+
+- name: Delete other node-affinity rules for {{ guest.sid }}
+  community.proxmox.proxmox_cluster_ha_rules:
+    api_host: "{{ proxmox_cluster_config_api_host }}"
+    api_user: "{{ proxmox_cluster_config_api_user }}"
+    api_token_id: "{{ proxmox_cluster_config_api_token_id }}"
+    api_token_secret: "{{ proxmox_cluster_config_api_token_secret }}"
+    validate_certs: false
+    name: "{{ item.rule }}"
+    state: absent
+  loop: "{{ proxmox_cluster_config_ha_others }}"
+  loop_control:
+    label: "{{ item.rule }}"
+  delegate_to: localhost
+  diff: true
+
+- name: Node-affinity rule for {{ guest.name }}
+  community.proxmox.proxmox_cluster_ha_rules:
+    api_host: "{{ proxmox_cluster_config_api_host }}"
+    api_user: "{{ proxmox_cluster_config_api_user }}"
+    api_token_id: "{{ proxmox_cluster_config_api_token_id }}"
+    api_token_secret: "{{ proxmox_cluster_config_api_token_secret }}"
+    validate_certs: false
+    name: "{{ guest.name }}-affinity"
+    state: present
+    type: node-affinity
+    nodes: ["{{ guest.node }}"]
+    resources: ["{{ guest.sid }}"]
+    strict: false
+    disable: false
+    comment: "{{ guest.name }}"
+  delegate_to: localhost
+  diff: true
+  when: guest.node | length > 0

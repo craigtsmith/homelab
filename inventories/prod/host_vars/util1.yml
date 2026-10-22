@@ -1,0 +1,5 @@
+---
+ansible_host: 192.168.100.12
+hostname: util1
+vm_name: util1
+ubuntu_vm_pgdg_repo: true

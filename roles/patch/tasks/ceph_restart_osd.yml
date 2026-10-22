@@ -1,0 +1,48 @@
+---
+# Restart this node's OSDs when they run an older version than installed, then
+# wait for the new version and every PG active+clean (noout is set).
+- name: Read installed Ceph
+  ansible.builtin.command: dpkg-query -W -f '${Version}' ceph-osd
+  register: patch_ceph_installed
+  changed_when: false
+  check_mode: false
+
+- name: Read this node's OSDs
+  ansible.builtin.command: ceph osd metadata -f json
+  register: patch_osd_meta
+  changed_when: false
+  check_mode: false
+
+- name: Pick the outdated OSDs
+  ansible.builtin.set_fact:
+    patch_osds_here: "{{ patch_osd_meta.stdout | from_json | selectattr('hostname', 'eq', inventory_hostname) | map(attribute='id') | list }}"
+    patch_osds_old: >-
+      {{ patch_osd_meta.stdout | from_json | selectattr('hostname', 'eq', inventory_hostname)
+         | rejectattr('ceph_version_short', 'eq', patch_ceph_installed.stdout | regex_replace('-pve.*$', ''))
+         | map(attribute='id') | list }}
+
+- name: Restart the OSDs
+  when: patch_osds_old | length > 0
+  block:
+    - name: Restart ceph-osd.target
+      ansible.builtin.systemd_service:
+        name: ceph-osd.target
+        state: restarted
+
+    - name: Wait for the OSDs to report the new version
+      ansible.builtin.command: ceph osd metadata -f json
+      register: patch_osd_meta_new
+      changed_when: false
+      until: >-
+        patch_osd_meta_new.rc == 0
+        and patch_osd_meta_new.stdout | from_json | selectattr('id', 'in', patch_osds_here)
+            | rejectattr('ceph_version_short', 'eq', patch_ceph_installed.stdout | regex_replace('-pve.*$', ''))
+            | list | length == 0
+      failed_when: patch_osd_meta_new.rc != 0
+      retries: "{{ patch_wait_retries }}"
+      delay: 10
+      when: not ansible_check_mode
+
+    - name: Wait for Ceph health
+      ansible.builtin.include_tasks: ceph_health.yml
+      when: not ansible_check_mode

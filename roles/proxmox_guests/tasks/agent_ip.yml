@@ -1,0 +1,25 @@
+---
+# Waits for the guest agent and returns the first 192.168.x IPv4 address
+- name: Wait for guest agent network info
+  ansible.builtin.uri:
+    url: "{{ proxmox_guests_api_url }}/nodes/{{ proxmox_guests_agent_node }}/qemu/{{ proxmox_guests_agent_vmid }}/agent/network-get-interfaces"
+    headers:
+      Authorization: "{{ proxmox_guests_auth_header }}"
+    validate_certs: false
+    status_code: [200, 500]
+  register: proxmox_guests_agent_net
+  until: >-
+    proxmox_guests_agent_net.status == 200
+    and (proxmox_guests_agent_net.json.data.result | map(attribute='ip-addresses', default=[]) | flatten
+         | selectattr('ip-address-type', 'eq', 'ipv4') | map(attribute='ip-address')
+         | select('match', '^192\.168\.') | list | length) > 0
+  retries: 60
+  delay: 10
+  no_log: true
+
+- name: Record guest IP
+  ansible.builtin.set_fact:
+    proxmox_guests_agent_ip: >-
+      {{ proxmox_guests_agent_net.json.data.result | map(attribute='ip-addresses', default=[]) | flatten
+         | selectattr('ip-address-type', 'eq', 'ipv4') | map(attribute='ip-address')
+         | select('match', '^192\.168\.') | first }}

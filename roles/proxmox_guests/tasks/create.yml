@@ -1,0 +1,35 @@
+---
+# Runs only for declared guests whose VMID does not exist. In check mode it
+# reports what would be created and stops.
+- name: Report missing guest {{ guest.name }}
+  ansible.builtin.debug:
+    msg: "{{ guest.vmid }} {{ guest.name }} is missing; build method {{ guest.build }}"
+  changed_when: true
+  when: ansible_check_mode
+
+- name: Stop on guests that are not automated yet
+  ansible.builtin.fail:
+    msg: >-
+      {{ guest.vmid }} {{ guest.name }} is missing and is built by hand
+      (helper script or ISO install). See docs/agents/backlog.md.
+  when:
+    - not ansible_check_mode
+    - guest.build == 'manual'
+
+- name: Build cloud-init template
+  ansible.builtin.include_tasks: template.yml
+  when:
+    - not ansible_check_mode
+    - guest.build == 'template'
+
+- name: Clone VM from template
+  ansible.builtin.include_tasks: clone.yml
+  when:
+    - not ansible_check_mode
+    - guest.build == 'clone'
+
+- name: Create LXC from the Debian template
+  ansible.builtin.include_tasks: lxc.yml
+  when:
+    - not ansible_check_mode
+    - guest.build == 'lxc'

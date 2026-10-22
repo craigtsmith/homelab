@@ -1,0 +1,11 @@
+// {{ ansible_managed }}
+// Replaces the origin lists of the package's 50unattended-upgrades: security
+// only. Debian's stable origin once replaced Proxmox's ZFS (2026-08-25).
+#clear Unattended-Upgrade::Allowed-Origins;
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+{% for origin in unattended_upgrades_origins %}
+        "{{ origin }}";
+{% endfor %}
+};
+Unattended-Upgrade::Automatic-Reboot "false";

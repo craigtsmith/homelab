@@ -1,0 +1,186 @@
+version: "3.13"
+
+networks:
+  traefik-public:
+    external: true
+
+services:
+  profilarr:
+    image: ghcr.io/dictionarry-hub/profilarr:latest
+    container_name: profilarr
+    restart: unless-stopped
+    ports:
+      - "6868:6868"
+    volumes:
+      - /mnt/cephfs/docker/profilarr/config:/config
+    environment:
+      - PUID=911
+      - PGID=911
+      - UMASK=022
+      - TZ=Europe/Amsterdam
+      - ORIGIN=https://profilarr.{{ domain }}
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.profilarr.rule=Host(`profilarr.{{ domain }}`)"
+        - "traefik.http.services.profilarr.loadbalancer.server.port=6868"
+        - "traefik.swarm.network=traefik-public"
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=911
+      - PGID=911
+      - UMASK=002
+    volumes:
+      - /mnt/cephfs/docker/sonarr:/config
+      - /mnt/nas-media/:/media
+    ports:
+      - "8989:8989"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.sonarr.rule=Host(`sonarr.{{ domain }}`)"
+        - "traefik.http.services.sonarr.loadbalancer.server.port=8989"
+        - "traefik.swarm.network=traefik-public"
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=911
+      - PGID=911
+      - UMASK=002
+    volumes:
+      - /mnt/cephfs/docker/radarr:/config
+      - /mnt/nas-media/:/media
+    ports:
+      - "7878:7878"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.radarr.rule=Host(`radarr.{{ domain }}`)"
+        - "traefik.http.services.radarr.loadbalancer.server.port=7878"
+        - "traefik.swarm.network=traefik-public"
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=911
+      - PGID=911
+      - UMASK=002
+    volumes:
+      - /mnt/cephfs/docker/lidarr:/config
+      - /mnt/nas-media/:/media
+    ports:
+      - "8686:8686"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.lidarr.rule=Host(`lidarr.{{ domain }}`)"
+        - "traefik.http.services.lidarr.loadbalancer.server.port=8686"
+        - "traefik.swarm.network=traefik-public"
+
+  ombi:
+    image: lscr.io/linuxserver/ombi:latest
+    environment:
+      - TZ=Europe/Amsterdam
+    volumes:
+      - /mnt/cephfs/docker/ombi:/config
+    ports:
+      - "3579:3579"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.ombi.rule=Host(`ombi.{{ domain }}`)"
+        - "traefik.http.services.ombi.loadbalancer.server.port=3579"
+        - "traefik.swarm.network=traefik-public"
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=911
+      - PGID=911
+      - UMASK=002
+    volumes:
+      - /mnt/cephfs/docker/bazarr:/config
+      - /mnt/nas-media/:/media
+    ports:
+      - "6767:6767"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.bazarr.rule=Host(`bazarr.{{ domain }}`)"
+        - "traefik.http.services.bazarr.loadbalancer.server.port=6767"
+        - "traefik.swarm.network=traefik-public"
+
+  sync:
+    image: linuxserver/resilio-sync:3.1.2.1076-1-ls247
+    environment:
+      - TZ=Europe/Amsterdam
+      - PUID=911
+      - PGID=911
+      - UMASK=002
+    volumes:
+      - /mnt/cephfs/docker/sync:/config
+      - /mnt/cephfs/docker/sync-downloads:/downloads
+      - /mnt/nas-media:/sync
+    ports:
+      - 8888:8888
+      - 55555:55555
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.sync.rule=Host(`sync.{{ domain }}`)"
+        - "traefik.http.services.sync.loadbalancer.server.port=8888"
+        - "traefik.swarm.network=traefik-public"
+
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    restart: unless-stopped
+    user: "911:911"
+    environment:
+      - TZ=Europe/Amsterdam
+      - ND_DATAFOLDER=/config
+      - ND_MUSICFOLDER=/media/Music
+      - ND_SCANNER_PURGEMISSING=always
+      - ND_LOGLEVEL=info
+    volumes:
+      - /mnt/cephfs/docker/navidrome:/config
+      - /mnt/nas-media/:/media:ro
+    ports:
+      - "4533:4533"
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.navidrome.rule=Host(`navidrome.{{ domain }}`)"
+        - "traefik.http.services.navidrome.loadbalancer.server.port=4533"
+        - "traefik.swarm.network=traefik-public"

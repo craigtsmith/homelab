@@ -1,0 +1,63 @@
+---
+# Cluster-wide config in /etc/pve (pmxcfs), copied from the live cluster on
+# 2026-10-14. Parsed into objects by filter_plugins/pve_cfg.py; reverted on the
+# manager node with pvesh.
+# The files write the domain as ${domain}; the role substitutes it on read.
+# HA resources and rules are per object through the API, generated from the
+# `ha` key in guests.yml (tasks/ha.yml).
+# Secrets (token secrets, PBS password, keyrings) live in /etc/pve/priv and are
+# not managed here.
+proxmox_cluster_config_files:
+  - { src: datacenter.cfg, dest: datacenter.cfg }
+  - { src: domains.cfg, dest: domains.cfg }
+  - { src: storage.cfg, dest: storage.cfg }
+  - { src: jobs.cfg, dest: jobs.cfg }
+  - { src: user.cfg, dest: user.cfg }
+  - { src: mapping-usb.cfg, dest: mapping/usb.cfg }
+
+# PVE storage `pbs` authenticates to PBS as root@pam with this password
+proxmox_cluster_config_pbs_password: "{{ lookup('community.general.onepassword', 'pbs-root', field='password', vault=op_vault) }}"
+
+# Live wins by default: the role only reports drift, per object. On drift
+# choose per object: revert (pvesh create/set from the repo files) or promote
+# (capture the live files into files/, keep hunks with git add -p). Never set
+# both. Revert never deletes; unmanaged live objects are only reported.
+proxmox_cluster_config_write: false
+proxmox_cluster_config_capture: false
+# Limit revert to some objects, by report name (storage:pbs, job:nightly-pbs,
+# acl:/vms:ansible@pam, priv/storage/pbs.pw, ha:docker1, ha:dns-apart), and promote to some
+# files, by dest (jobs.cfg). Empty means all. The report always covers everything.
+proxmox_cluster_config_only: []
+# Fail the play when the report finds differences
+proxmox_cluster_config_fail_on_drift: false
+
+proxmox_cluster_config_selected: >-
+  {{ proxmox_cluster_config_files if proxmox_cluster_config_only | length == 0
+     else proxmox_cluster_config_files | selectattr('dest', 'in', proxmox_cluster_config_only) | list }}
+proxmox_cluster_config_pbs_selected: >-
+  {{ proxmox_cluster_config_only | length == 0 or 'priv/storage/pbs.pw' in proxmox_cluster_config_only }}
+proxmox_cluster_config_ha_selected: >-
+  {{ proxmox_cluster_config_ha if proxmox_cluster_config_only | length == 0
+     else proxmox_cluster_config_ha | selectattr('name', 'in', proxmox_cluster_config_only | select('match', '^ha:')
+                                                              | map('regex_replace', '^ha:', '') | list) | list }}
+
+# HA resources and node-affinity rules, one per guest with an `ha` key in
+# guests.yml: `ha: {node: pve1}` adds rule `<name>-affinity` (non-strict);
+# `ha: {state: started}` without a node adds only the resource.
+proxmox_cluster_config_ha: "{{ lookup('ansible.builtin.template', 'ha.j2') | from_yaml | default([], true) }}"
+# Resource-affinity rules by readable ID: [{rule: dns-apart, affinity: negative,
+# resources: ["ct:118", "ct:119"], comment: ...}]; revert by `ha:<rule>`
+proxmox_cluster_config_ha_resource_affinity: []
+proxmox_cluster_config_ha_resource_affinity_selected: >-
+  {{ proxmox_cluster_config_ha_resource_affinity if proxmox_cluster_config_only | length == 0
+     else proxmox_cluster_config_ha_resource_affinity | selectattr('rule', 'in', proxmox_cluster_config_only | select('match', '^ha:')
+                                                                    | map('regex_replace', '^ha:', '') | list) | list }}
+
+# Proxmox API for the per-object tasks (token needs Sys.Console on / to write HA)
+proxmox_cluster_config_api_host: "{{ ansible_host }}"
+proxmox_cluster_config_api_user: ansible@pam
+proxmox_cluster_config_api_token_id: ansible
+proxmox_cluster_config_api_token_secret: "{{ lookup('community.general.onepassword', 'pve-api-ansible', field='credential', vault=op_vault) }}"
+proxmox_cluster_config_api_url: https://{{ proxmox_cluster_config_api_host }}:8006/api2/json
+proxmox_cluster_config_api_auth_header: >-
+  PVEAPIToken={{ proxmox_cluster_config_api_user }}!{{ proxmox_cluster_config_api_token_id }}={{ proxmox_cluster_config_api_token_secret }}

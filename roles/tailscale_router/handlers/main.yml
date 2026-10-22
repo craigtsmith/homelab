@@ -1,0 +1,8 @@
+---
+- name: Reload sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: true
+
+- name: Apply UDP GRO settings
+  ansible.builtin.command: /etc/networkd-dispatcher/routable.d/50-tailscale
+  changed_when: true

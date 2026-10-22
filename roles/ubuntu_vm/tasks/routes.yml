@@ -1,0 +1,34 @@
+---
+# A separate netplan file holds the routes for boot. The live route is added with
+# `ip route replace`, because `netplan apply` on a swarm node re-plumbs every link.
+- name: Write static routes for boot
+  ansible.builtin.copy:
+    dest: /etc/netplan/60-homelab-routes.yaml
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      network:
+        version: 2
+        ethernets:
+          {{ ubuntu_vm_net_iface }}:
+            routes:
+      {% for r in ubuntu_vm_static_routes %}
+              - to: {{ r.to }}
+                via: {{ r.via }}
+      {% endfor %}
+
+- name: Read live routes
+  ansible.builtin.command: ip -4 route show {{ item.to }}
+  loop: "{{ ubuntu_vm_static_routes }}"
+  register: ubuntu_vm_live_routes
+  changed_when: false
+  check_mode: false
+
+- name: Add missing live routes
+  ansible.builtin.command: ip route replace {{ item.item.to }} via {{ item.item.via }} dev {{ ubuntu_vm_net_iface }}
+  loop: "{{ ubuntu_vm_live_routes.results }}"
+  loop_control:
+    label: "{{ item.item.to }}"
+  when: ('via ' + item.item.via) not in item.stdout
+  changed_when: true

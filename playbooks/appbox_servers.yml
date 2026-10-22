@@ -1,0 +1,12 @@
+---
+- name: Validate environment for appbox servers
+  import_playbook: common/validate_env.yml
+
+- name: Appbox servers
+  hosts: appbox_servers
+  become: true
+  gather_facts: true
+  roles:
+    - role: unattended_upgrades
+    - role: tailscale_router
+    - role: appbox_server

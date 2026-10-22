@@ -1,0 +1,9 @@
+---
+# Connection defaults for Proxmox Backup Server
+ansible_user: root
+
+# playbooks/patch.yml: stay on PBS 4; the ZFS 2.4 swap removes libzfs6linux
+patch_majors:
+  proxmox-backup-server: "4"
+patch_allowed_removals: [libzfs6linux]
+patch_purge: [libzpool6linux]

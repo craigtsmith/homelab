@@ -1,0 +1,45 @@
+version: "3.8"
+
+networks:
+  traefik-public:
+    external: true
+
+services:
+  rustfs:
+    image: rustfs/rustfs:1.0.1
+    volumes:
+      - /mnt/cephfs/rustfs:/data
+    environment:
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+    networks:
+      - traefik-public
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.rustfs.rule=Host(`s3.{{ domain }}`)"
+        - "traefik.http.services.rustfs.loadbalancer.server.port=9000"
+        - "traefik.http.routers.rustfs.service=rustfs"
+        - "traefik.http.routers.rustfs-console.rule=Host(`rustfs.{{ domain }}`)"
+        - "traefik.http.services.rustfs-console.loadbalancer.server.port=9001"
+        - "traefik.http.routers.rustfs-console.service=rustfs-console"
+        # page loads of / go to the console; signed API calls to / must not be redirected
+        - "traefik.http.routers.rustfs-console-root.rule=Host(`rustfs.{{ domain }}`) && Path(`/`) && HeaderRegexp(`Accept`, `text/html`)"
+        - "traefik.http.routers.rustfs-console-root.service=rustfs-console"
+        - "traefik.http.routers.rustfs-console-root.middlewares=rustfs-console-root"
+        - "traefik.http.middlewares.rustfs-console-root.redirectregex.regex=^https?://([^/]+)/$$"
+        - "traefik.http.middlewares.rustfs-console-root.redirectregex.replacement=https://$${1}/rustfs/console/"
+        - "traefik.swarm.network=traefik-public"

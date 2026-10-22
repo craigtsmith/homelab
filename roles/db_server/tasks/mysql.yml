@@ -1,0 +1,92 @@
+---
+- name: Install MySQL archive signing key
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      curl -fsSL {{ db_server_mysql_key_url }}
+      | gpg --dearmor -o /usr/share/keyrings/mysql.gpg
+    executable: /bin/bash
+    creates: /usr/share/keyrings/mysql.gpg
+
+- name: Add MySQL apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/mysql.gpg]
+      http://repo.mysql.com/apt/ubuntu {{ ansible_distribution_release }} {{ db_server_mysql_series }}
+    filename: mysql
+    state: present
+
+- name: Install MySQL server and client
+  ansible.builtin.apt:
+    name:
+      - mysql-server
+      - mysql-client
+    state: present
+
+- name: Write MySQL settings
+  ansible.builtin.copy:
+    content: |
+      [mysqld]
+      bind-address = *
+      mysqlx-bind-address = 127.0.0.1
+    dest: /etc/mysql/mysql.conf.d/homelab.cnf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart mysql
+
+- name: Ensure MySQL service is running
+  ansible.builtin.systemd_service:
+    name: mysql
+    state: started
+    enabled: true
+
+- name: Apply MySQL changes before using the server
+  ansible.builtin.meta: flush_handlers
+
+- name: Read MySQL users
+  community.mysql.mysql_info:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    filter: users
+  register: db_server_mysql_info
+
+# Create-only: on MySQL 8 the module does not match an expanded grant list
+# to ALL and would re-grant on every run. `password` would create a
+# mysql_native_password user, which 8.4 does not load.
+- name: Create MySQL admin user
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: "{{ db_server_user }}"
+    plugin: caching_sha2_password
+    plugin_auth_string: "{{ db_user.mysql_password }}"
+    host: "%"
+    priv: "*.*:ALL,GRANT"
+    update_password: on_create
+    state: present
+  when: db_server_user not in (db_server_mysql_info.users['%'] | default({}))
+  no_log: true
+
+- name: Remove anonymous users
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: ""
+    host_all: true
+    state: absent
+
+- name: Disallow remote root login
+  community.mysql.mysql_user:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: root
+    host: "%"
+    state: absent
+
+- name: Remove test database
+  community.mysql.mysql_db:
+    login_user: root
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    name: test
+    state: absent

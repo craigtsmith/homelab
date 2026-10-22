@@ -1,0 +1,40 @@
+---
+# Stop or start one docker VM through HA (patch_swarm_vm_state: stopped |
+# started) and wait until it is stopped, or running with SSH up and its swarm
+# node Ready.
+- name: Set the HA state, {{ patch_swarm_vm }}
+  ansible.builtin.command: ha-manager set vm:{{ patch_swarm_vms[patch_swarm_vm].vmid }} --state {{ patch_swarm_vm_state }}
+  changed_when: true
+
+- name: Wait for the VM state, {{ patch_swarm_vm }}
+  ansible.builtin.command: pvesh get /cluster/resources --type vm --output-format json
+  register: patch_swarm_now
+  changed_when: false
+  until: >-
+    patch_swarm_now.rc == 0
+    and patch_swarm_now.stdout | from_json | selectattr('vmid', 'eq', patch_swarm_vms[patch_swarm_vm].vmid)
+        | map(attribute='status') | first == ('stopped' if patch_swarm_vm_state == 'stopped' else 'running')
+  failed_when: patch_swarm_now.rc != 0
+  retries: "{{ patch_wait_retries }}"
+  delay: 10
+  when: not ansible_check_mode
+
+- name: Wait for SSH, {{ patch_swarm_vm }}
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[patch_swarm_vm].ansible_host }}"
+    port: 22
+    timeout: 600
+  delegate_to: localhost
+  become: false
+  when: patch_swarm_vm_state == 'started' and not ansible_check_mode
+
+- name: Wait for the swarm node to be Ready, {{ patch_swarm_vm }}
+  ansible.builtin.command: docker node inspect {{ patch_swarm_vm }}.{{ domain }} --format '{{ "{{" }}.Status.State{{ "}}" }}'
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_state
+  changed_when: false
+  until: patch_swarm_state.rc == 0 and patch_swarm_state.stdout == 'ready'
+  retries: "{{ patch_wait_retries }}"
+  delay: 10
+  when: patch_swarm_vm_state == 'started' and not ansible_check_mode

@@ -1,0 +1,9 @@
+---
+# Also run alone by playbooks/ceph_upgrade.yml with the target release
+- name: Configure the Ceph apt source
+  ansible.builtin.template:
+    src: ceph.sources.j2
+    dest: /etc/apt/sources.list.d/ceph.sources
+    owner: root
+    group: root
+    mode: "0644"

@@ -1,0 +1,43 @@
+---
+# Run `apt upgrade` as part of the role. Off by default so a converge run
+# never upgrades packages on a live host.
+ubuntu_vm_upgrade: false
+
+ubuntu_vm_base_packages:
+  - iftop
+  - ncdu
+  - iperf3
+
+ubuntu_vm_timezone: "{{ tz }}"
+ubuntu_vm_hostname: "{{ inventory_hostname }}.{{ domain }}"
+
+# systemd-resolved split DNS for the lab domain
+ubuntu_vm_dns_override: true
+ubuntu_vm_dns_override_file: "/etc/systemd/resolved.conf.d/{{ domain.split('.') | first }}.conf"
+
+# fstab entries mounted by the role (NAS shares, data disks); set per group/host
+ubuntu_vm_mounts: []
+
+# Static routes on the main NIC ({ to, via }), set per group/host
+ubuntu_vm_static_routes: []
+
+# PostgreSQL apt repo (pgdg), needed where the server or client comes from pgdg
+ubuntu_vm_pgdg_repo: false
+
+# Network throughput tuning: sysctls plus NIC queue and RPS oneshot units
+ubuntu_vm_net_tuning: true
+ubuntu_vm_net_iface: "{{ ansible_default_ipv4.interface }}"
+# One queue per vCPU, capped by the NIC maximum (queues= on net0, read with ethtool -l);
+# RPS spreads over the same CPUs
+ubuntu_vm_nic_queues: "{{ [ansible_processor_vcpus | int, ubuntu_vm_nic_max_queues | int] | min }}"
+ubuntu_vm_rps_cpus: "{{ '%x' % (2 ** (ubuntu_vm_nic_queues | int) - 1) }}"
+ubuntu_vm_rps_flow_cnt: 2048
+ubuntu_vm_rps_sock_flow_entries: 32768
+ubuntu_vm_sysctls:
+  net.core.rmem_max: 16777216
+  net.core.wmem_max: 16777216
+  net.core.netdev_max_backlog: 25000
+  net.core.somaxconn: 16384
+  net.ipv4.tcp_mtu_probing: 1
+  net.core.default_qdisc: fq
+  net.ipv4.tcp_congestion_control: bbr

@@ -1,0 +1,8 @@
+---
+# A guest's whole run: packages, then a reboot when needed. Nodes run the
+# stages separately (playbooks/patch.yml).
+- name: Upgrade packages
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Reboot when needed
+  ansible.builtin.import_tasks: guest_reboot.yml

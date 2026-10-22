@@ -1,0 +1,41 @@
+---
+- name: Install PostgreSQL
+  ansible.builtin.apt:
+    name: postgresql-{{ db_server_postgres_version }}
+    state: present
+
+- name: Write PostgreSQL settings
+  ansible.builtin.template:
+    src: postgresql-homelab.conf.j2
+    dest: "{{ db_server_postgres_conf_dir }}/conf.d/homelab.conf"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Restart postgresql
+
+- name: Allow remote password access for all roles
+  ansible.builtin.lineinfile:
+    path: "{{ db_server_postgres_hba }}"
+    regexp: "^host\\s+all\\s+all\\s+0.0.0.0/0\\s"
+    line: "host    all             all             0.0.0.0/0               scram-sha-256"
+  notify: Restart postgresql
+
+- name: Ensure PostgreSQL service is running
+  ansible.builtin.systemd_service:
+    name: postgresql
+    state: started
+    enabled: true
+
+- name: Apply PostgreSQL changes before using the server
+  ansible.builtin.meta: flush_handlers
+
+- name: Ensure admin PostgreSQL role exists
+  community.postgresql.postgresql_user:
+    name: "{{ db_server_user }}"
+    password: "{{ db_user.postgres_password }}"
+    role_attr_flags: LOGIN,SUPERUSER,CREATEDB
+    state: present
+    login_unix_socket: /var/run/postgresql
+  become: true
+  become_user: postgres
+  no_log: true

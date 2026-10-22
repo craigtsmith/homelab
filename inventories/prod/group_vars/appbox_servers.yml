@@ -1,0 +1,10 @@
+---
+# Datacentre VMs at Appbox (Amsterdam): download and tracker-facing services, on the
+# tailnet, finished files to the NAS over Tailscale
+tailscale_router_routes: []
+# The tailnet DNS points at the homelab's AdGuard, which may be down
+tailscale_router_accept_dns: false
+# Replies to docker1-3 go back through tailscale1's 192.168.100.0/24 route
+tailscale_router_accept_routes: true
+tailscale_router_udp_gro: false
+tailscale_router_authkey: "{{ lookup('community.general.onepassword', 'tailscale-authkey-appbox', field='credential', vault=op_vault) }}"

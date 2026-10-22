@@ -1,0 +1,13 @@
+{# Declared config minus scsi0 and ide2 (handled separately). Extra scsi disks
+   are rewritten from "storage:vm-N-disk-M,opts,size=110G" to
+   "storage:110,opts" so Proxmox allocates a new volume. #}
+{% for k, v in guest.config.items() if k not in ['scsi0', 'ide2'] %}
+{%   if k is match('^scsi\d+$') %}
+{%     set storage = v.split(':')[0] %}
+{%     set size = v | regex_search('size=\d+G') | regex_replace('^size=(\d+)G$', '\\1') %}
+{%     set opts = v.split(',')[1:] | reject('match', '^size=') | join(',') %}
+{{ k }}: "{{ storage }}:{{ size }}{{ ',' ~ opts if opts else '' }}"
+{%   else %}
+{{ k }}: {{ v | to_json }}
+{%   endif %}
+{% endfor %}

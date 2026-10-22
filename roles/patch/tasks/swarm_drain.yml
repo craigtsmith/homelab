@@ -1,0 +1,21 @@
+---
+# Drain patch_swarm_node through the manager and wait until its swarm tasks
+# have stopped.
+- name: Drain the swarm node {{ patch_swarm_node }}
+  ansible.builtin.command: docker node update --availability drain {{ patch_swarm_node }}.{{ domain }}
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  changed_when: true
+
+- name: Wait for the swarm tasks to stop on {{ patch_swarm_node }}
+  ansible.builtin.command: >-
+    docker node ps {{ patch_swarm_node }}.{{ domain }} --filter desired-state=running --format '{{ "{{" }}.Name{{ "}}" }}'
+  delegate_to: "{{ patch_swarm_manager }}"
+  become: true
+  register: patch_swarm_tasks
+  changed_when: false
+  until: patch_swarm_tasks.rc == 0 and patch_swarm_tasks.stdout_lines | length == 0
+  failed_when: patch_swarm_tasks.rc != 0
+  retries: "{{ patch_wait_retries }}"
+  delay: 10
+  when: not ansible_check_mode

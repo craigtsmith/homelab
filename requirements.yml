@@ -1,0 +1,16 @@
+---
+collections:
+  - name: ansible.posix
+    version: "2.1.0"
+  - name: ansible.utils
+    version: "6.1.1"
+  - name: community.docker
+    version: "5.0.5"
+  - name: community.general
+    version: "12.3.0"
+  - name: community.mysql
+    version: "4.0.1"
+  - name: community.postgresql
+    version: "4.2.0"
+  - name: community.proxmox
+    version: "1.5.0"

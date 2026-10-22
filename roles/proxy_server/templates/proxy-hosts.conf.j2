@@ -1,0 +1,67 @@
+# {{ ansible_managed }}
+# Proxy hosts from proxy_server_hosts (inventories/prod/group_vars/proxy_servers.yml)
+{% for item in proxy_server_hosts %}
+{%   set h = proxy_server_host_defaults | combine(item) %}
+{#   upstream is scheme://host:port; split, not regex backreferences (see AGENTS.md) #}
+{%   set up = [h.upstream.split('://')[0]] + h.upstream.split('://')[1].rsplit(':', 1) %}
+
+# {{ h.names | join(' ') }}
+server {
+  set $forward_scheme {{ up[0] }};
+  set $server         "{{ up[1] }}";
+  set $port           {{ up[2] }};
+
+  listen 80;
+  listen [::]:80;
+  listen 443 ssl;
+  listen [::]:443 ssl;
+{%   if h.http2 %}
+  http2 on;
+{%   endif %}
+
+  server_name {{ h.names | join(' ') }};
+
+  include /etc/nginx/snippets/proxy-ssl.conf;
+  ssl_certificate /etc/letsencrypt/live/{{ h.cert }}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/{{ h.cert }}/privkey.pem;
+{%   if h.cache_assets %}
+
+  include /etc/nginx/snippets/proxy-assets.conf;
+{%   endif %}
+{%   if h.hsts %}
+
+  add_header Strict-Transport-Security "max-age=63072000; preload" always;
+{%   endif %}
+{%   if h.force_ssl %}
+
+  if ($scheme = "http") {
+    return 301 https://$host$request_uri;
+  }
+{%   endif %}
+{%   if h.websocket %}
+
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection $http_connection;
+  proxy_http_version 1.1;
+{%   endif %}
+
+  access_log /var/log/nginx/proxy-{{ h.names[0] | replace('*', 'wildcard') }}_access.log proxy;
+  error_log /var/log/nginx/proxy-{{ h.names[0] | replace('*', 'wildcard') }}_error.log warn;
+{%   if h.advanced %}
+
+{{ h.advanced | trim | indent(2, first=true) }}
+{%   endif %}
+
+  location / {
+{%   if h.hsts %}
+    add_header Strict-Transport-Security "max-age=63072000; preload" always;
+{%   endif %}
+{%   if h.websocket %}
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    proxy_http_version 1.1;
+{%   endif %}
+    include /etc/nginx/snippets/proxy-headers.conf;
+  }
+}
+{% endfor %}

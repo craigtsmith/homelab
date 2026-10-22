@@ -1,0 +1,4 @@
+---
+dependencies:
+  - role: common
+    allow_duplicates: false

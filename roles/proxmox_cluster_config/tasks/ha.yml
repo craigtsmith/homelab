@@ -1,0 +1,60 @@
+---
+# HA resources and node-affinity rules per guest, from the `ha` key in
+# guests.yml, and resource-affinity rules from proxmox_cluster_config_ha_resource_affinity.
+# Report by default; revert creates or updates the declared objects
+# and deletes other node-affinity rules that hold a declared resource (the API
+# allows one per resource). Unmanaged objects are reported, never removed.
+- name: Read live HA resources and rules
+  ansible.builtin.uri:
+    url: "{{ proxmox_cluster_config_api_url }}/cluster/ha/{{ item }}"
+    headers:
+      Authorization: "{{ proxmox_cluster_config_api_auth_header }}"
+    validate_certs: false
+  loop: [resources, rules]
+  register: proxmox_cluster_config_ha_live
+  delegate_to: localhost
+  check_mode: false
+  no_log: true
+
+- name: Split live HA into resources and rules
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_ha_live_resources: "{{ proxmox_cluster_config_ha_live.results[0].json.data }}"
+    proxmox_cluster_config_ha_live_rules: "{{ proxmox_cluster_config_ha_live.results[1].json.data }}"
+
+- name: Compare declared and live HA
+  ansible.builtin.set_fact:
+    proxmox_cluster_config_ha_drift: "{{ lookup('ansible.builtin.template', 'ha_drift.j2') | from_yaml | default([], true) }}"
+
+- name: HA drift report
+  ansible.builtin.debug:
+    msg: "{{ proxmox_cluster_config_ha_drift if proxmox_cluster_config_ha_drift | length > 0 else 'No drift: HA resources and rules match guests.yml' }}"
+
+- name: Revert HA per guest
+  ansible.builtin.include_tasks: ha_guest.yml
+  loop: "{{ proxmox_cluster_config_ha_selected }}"
+  loop_control:
+    loop_var: guest
+    label: "{{ guest.sid }} {{ guest.name }}"
+  when: proxmox_cluster_config_write | bool
+
+# After the per-guest loop: the API rejects a rule whose resources are not HA resources
+- name: Resource-affinity rules
+  community.proxmox.proxmox_cluster_ha_rules:
+    api_host: "{{ proxmox_cluster_config_api_host }}"
+    api_user: "{{ proxmox_cluster_config_api_user }}"
+    api_token_id: "{{ proxmox_cluster_config_api_token_id }}"
+    api_token_secret: "{{ proxmox_cluster_config_api_token_secret }}"
+    validate_certs: false
+    name: "{{ item.rule }}"
+    state: present
+    type: resource-affinity
+    affinity: "{{ item.affinity }}"
+    resources: "{{ item.resources }}"
+    disable: false
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ proxmox_cluster_config_ha_resource_affinity_selected }}"
+  loop_control:
+    label: "{{ item.rule }}"
+  delegate_to: localhost
+  diff: true
+  when: proxmox_cluster_config_write | bool

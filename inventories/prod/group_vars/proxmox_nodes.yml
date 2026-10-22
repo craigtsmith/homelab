@@ -1,0 +1,27 @@
+---
+# Connection defaults for Proxmox hosts
+ansible_user: root
+
+# Cluster bootstrap (playbooks/proxmox_cluster_bootstrap.yml). The root
+# password is read from 1Password only when a node is not yet clustered.
+cluster:
+  name: homelab
+  user: root@pam
+  password: "{{ lookup('community.general.onepassword', 'pve-root', field='password', vault=op_vault) }}"
+  validate_certs: false
+
+# root authorized_keys is a symlink into /etc/pve/priv; leave it to pve-cluster
+common_authorized_key: false
+
+# Ceph Tentacle since 2026-10-19 (playbooks/ceph_upgrade.yml): packages from
+# the ceph-tentacle repo
+proxmox_node_ceph_repo: {release: tentacle, component: no-subscription, enabled: true}
+
+# playbooks/patch.yml: stay on PVE 9 and Ceph tentacle. The Proxmox ZFS swap
+# removes libzfs6linux; zfs-dkms and libzpool6linux are Debian leftovers
+# (README.md, "Patching").
+patch_majors:
+  pve-manager: "9"
+  ceph-common: "20"
+patch_allowed_removals: [libzfs6linux]
+patch_purge: [zfs-dkms, libzpool6linux]

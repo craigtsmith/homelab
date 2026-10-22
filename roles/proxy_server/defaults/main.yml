@@ -1,0 +1,35 @@
+---
+# Reverse proxy: nginx and certbot from Debian, with the proxy hosts that ran in Nginx
+# Proxy Manager (ct104) until 2026-10. Hosts and certificates are declared in
+# inventory and rendered into one file; there is no UI.
+proxy_server_packages:
+  - nginx
+  - certbot
+  - python3-certbot-dns-cloudflare
+
+# Certificates: Let's Encrypt DNS-01 through Cloudflare. Issued once when missing
+# (certbot certonly); Debian's certbot.timer renews them and the deploy hook reloads nginx.
+proxy_server_acme_email: "admin@{{ domain }}"
+# Test LXCs use https://acme-staging-v02.api.letsencrypt.org/directory
+proxy_server_acme_server: https://acme-v02.api.letsencrypt.org/directory
+proxy_server_cloudflare_token: "{{ lookup('community.general.onepassword', 'cloudflare-dns', field='credential', vault=op_vault) }}"
+# {name, domains}; name is the certbot cert name (/etc/letsencrypt/live/<name>)
+proxy_server_certs: []
+
+# {names, upstream, cert, force_ssl, websocket, http2, hsts, cache_assets, advanced}
+# Missing keys come from proxy_server_host_defaults.
+proxy_server_hosts: []
+proxy_server_host_defaults:
+  cert: wildcard
+  force_ssl: true
+  websocket: true
+  http2: true
+  hsts: true
+  cache_assets: false
+  advanced: ""
+
+# Clients on these networks may set X-Real-IP (as in NPM)
+proxy_server_real_ip_from:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16

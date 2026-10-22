@@ -1,0 +1,66 @@
+---
+- name: Create service data directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop: "{{ appbox_server_dirs }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Read the tailnet IP
+  ansible.builtin.command: tailscale ip -4
+  register: appbox_server_tailnet_ip_raw
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Check mode on a host not yet logged in renders with a placeholder
+- name: Set the tailnet IP for port bindings
+  ansible.builtin.set_fact:
+    appbox_server_tailnet_ip: "{{ (appbox_server_tailnet_ip_raw.stdout_lines | default([]) + ['127.0.0.1']) | first }}"
+
+- name: Create the compose directory
+  register: appbox_server_compose_dir_state
+  ansible.builtin.file:
+    path: "{{ appbox_server_compose_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Copy the compose file
+  ansible.builtin.template:
+    src: "{{ appbox_server_compose_src }}"
+    dest: "{{ appbox_server_compose_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Write the compose environment
+  ansible.builtin.copy:
+    dest: "{{ appbox_server_compose_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      {% for k, v in appbox_server_compose_env.items() %}
+      {{ k }}={{ v }}
+      {% endfor %}
+  no_log: true
+
+- name: Check for the Docker CLI
+  ansible.builtin.stat:
+    path: /usr/bin/docker
+  register: appbox_server_docker
+
+# Check mode on a new host has no Docker or compose directory to ask
+- name: Start the compose project
+  community.docker.docker_compose_v2:
+    project_src: "{{ appbox_server_compose_dir }}"
+    state: present
+    pull: missing
+    services: "{{ appbox_server_compose_services | default(omit, true) }}"
+  when: not ansible_check_mode or (appbox_server_docker.stat.exists and appbox_server_compose_dir_state is not changed)

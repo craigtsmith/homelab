@@ -1,0 +1,68 @@
+---
+# Utilities installed by hand on every node
+proxmox_node_packages:
+  - ethtool
+  - fio
+  - hdparm
+  - iftop
+  - iperf3
+  - ipmitool
+  - lm-sensors
+  - nfs-common
+
+# Apt sources as left by the community post-pve-install script (deb822,
+# trixie). sources.list is kept empty.
+# Removed when found (bookworm leftovers deleted 2026-10-14)
+proxmox_node_apt_absent:
+  - /etc/apt/sources.list.d/proxmox.list
+  - /etc/apt/sources.list.d/ceph.list
+  - /etc/apt/sources.list.d/pve-enterprise.list
+
+# Purged when found: stock Debian kernels pulled in by hand (Proxmox ships its
+# own kernel); openipmi (no IPMI device, its unit failed at every boot)
+proxmox_node_packages_absent:
+  - linux-image-amd64
+  - linux-headers-amd64
+  - openipmi
+
+# Removed when found: an rc.local without a shebang that never ran (203/EXEC)
+# and its unused governor setting; the nodes run intel_pstate `performance`
+proxmox_node_files_absent:
+  - /etc/rc.local
+  - /etc/default/cpufreq
+
+proxmox_node_apt_files:
+  - { src: apt/sources.list, dest: /etc/apt/sources.list }
+  - { src: apt/debian.sources, dest: /etc/apt/sources.list.d/debian.sources }
+  - { src: apt/proxmox.sources, dest: /etc/apt/sources.list.d/proxmox.sources }
+  - { src: apt/pve-enterprise.sources, dest: /etc/apt/sources.list.d/pve-enterprise.sources }
+  - { src: apt/pve-test.sources, dest: /etc/apt/sources.list.d/pve-test.sources }
+  - { src: apt/no-nag-script, dest: /etc/apt/apt.conf.d/no-nag-script }
+  - { src: apt/proxmox-zfs.pref, dest: /etc/apt/preferences.d/proxmox-zfs }
+
+# /etc/apt/sources.list.d/ceph.sources: the release the cluster runs (Tentacle since
+# 2026-10-19). A Ceph major changes it (playbooks/ceph_upgrade.yml sets it per run,
+# then group_vars records it).
+proxmox_node_ceph_repo: {release: tentacle, component: no-subscription, enabled: true}
+
+proxmox_node_lab_backup:
+  src: 192.168.1.50:/volume2/lab-backup
+  path: /mnt/lab-backup
+  opts: rw,sync,hard
+
+# Per-node: ceph network address on enp2s0 and the ansible user's public key
+proxmox_node_ceph_address: ""
+proxmox_node_ansible_user_key: ""
+
+# Daily CephFS snapshots for the backup on util1 (roles/cephfs_backup), taken
+# through the node's ceph_fs mount (client.admin may snapshot). Every node runs
+# the timer; the snapshot name holds only the date, so the first node creates
+# it and the others find it there. Keeps the newest `keep` scheduled-* snapshots.
+# Replaced Ceph's snap_schedule, which took no snapshot after a mgr takeover
+# (2026-10-18/19).
+proxmox_node_cephfs_storage: ceph_fs
+proxmox_node_cephfs_mount: /mnt/pve/{{ proxmox_node_cephfs_storage }}
+proxmox_node_cephfs_snapshots:
+  - { dir: docker, keep: 3 }
+# UTC, so the name tells the time: 03:15 CEST, 02:15 CET (backup at 03:30)
+proxmox_node_cephfs_snapshot_time: "01:15:00"

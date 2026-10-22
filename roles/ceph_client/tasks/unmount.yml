@@ -1,0 +1,24 @@
+---
+- name: Check the CephFS automount  # noqa: command-instead-of-module
+  ansible.builtin.command: systemctl is-active {{ ceph_client_automount }}
+  register: ceph_client_automount_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Stop the CephFS automount
+  ansible.builtin.systemd_service:
+    name: "{{ ceph_client_automount }}"
+    state: stopped
+  when: ceph_client_automount_state.rc == 0
+
+- name: Unmount CephFS and remove it from fstab
+  ansible.posix.mount:
+    path: "{{ ceph_client_mount_path }}"
+    state: absent
+  notify: Reload systemd daemon
+
+- name: Remove the CephFS client key
+  ansible.builtin.file:
+    path: "{{ ceph_client_keyring }}"
+    state: absent

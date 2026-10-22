@@ -1,0 +1,8 @@
+---
+ansible_host: 192.168.100.22
+hostname: db1
+vm_name: db1
+ubuntu_vm_pgdg_repo: true
+
+# no CephFS use (craig, 2026-10-17)
+ceph_client_mount: false

@@ -1,0 +1,33 @@
+---
+proxmox_guests_api_host: "{{ hostvars[proxmox_guests_manager].ansible_host }}"
+proxmox_guests_manager: >-
+  {{ groups['proxmox_nodes'] | map('extract', hostvars) | selectattr('cluster_role', 'eq', 'manager')
+     | map(attribute='inventory_hostname') | first }}
+proxmox_guests_api_url: https://{{ proxmox_guests_api_host }}:8006/api2/json
+proxmox_guests_token_id: ansible@pam!ansible
+proxmox_guests_token: "{{ lookup('community.general.onepassword', 'pve-api-ansible', field='credential', vault=op_vault) }}"
+proxmox_guests_auth_header: PVEAPIToken={{ proxmox_guests_token_id }}={{ proxmox_guests_token }}
+
+# Fail the play when the drift report finds differences
+proxmox_guests_fail_on_drift: false
+
+# Keys that change on every boot/edit or are set by Proxmox itself
+proxmox_guests_volatile_keys: [digest, smbios1, vmgenid, meta, parent, name, hostname, template]
+
+# Cloud-init user snippets on the shared ceph_fs storage
+# (cicustom user=ceph_fs:snippets/<name>)
+proxmox_guests_snippet_dir: /mnt/pve/ceph_fs/snippets
+proxmox_guests_snippets:
+  - user-noble.yml   # 24.04 VMs
+proxmox_guests_cloudinit_passwd: "{{ lookup('community.general.onepassword', 'cloud-init-serveradmin', field='password', vault=op_vault) }}"
+# Retired client.vm_access key (deleted from Ceph 2026-10-19). The snippets keep
+# it: a changed snippet likely gives every VM a new instance-id (new SSH host
+# keys). The mount it writes fails harmlessly; ceph_client replaces it.
+proxmox_guests_snippet_ceph_key: "{{ lookup('community.general.onepassword', 'ceph-vm-access', field='password', vault=op_vault) }}"
+
+# Template build: cloud images by Ubuntu release (guest key `image`)
+proxmox_guests_images:
+  noble:
+    url: https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+    checksum: sha256:https://cloud-images.ubuntu.com/noble/current/SHA256SUMS
+proxmox_guests_image_dir: /root
