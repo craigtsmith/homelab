@@ -156,7 +156,7 @@ items, 3b, 7c, 8b and the rebuild gaps. Ombi waits for a stable 4.60. The reMark
 ## Kickoff prompt for the next session
 
 ```
-We're continuing the homelab Ansible work in ~/Projects/homelab.fix-setup (branch fix-setup).
+We're continuing the homelab Ansible work in ~/Projects/homelab.
 
 Before doing anything, read AGENTS.md, docs/agents/handover.md, docs/agents/learnings.md and
 docs/agents/backlog.md, then summarise back to me in a few lines where we are.
@@ -170,6 +170,6 @@ services, appbox1's media-remote stack) and scripts/drift.
 Rules: nothing that affects running services without my explicit approval for that
 specific action; --check first, one host at a time; never print secrets; tick
 docs/agents/backlog.md and update docs/agents/handover.md as work lands; add learnings only to
-docs/agents/learnings.md; commit often with conventional commits on fix-setup; never push;
+docs/agents/learnings.md; commit often with conventional commits; never push;
 ask through AskUserQuestion.
 ```

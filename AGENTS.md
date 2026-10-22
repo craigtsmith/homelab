@@ -96,9 +96,9 @@ scripts/drift [pattern]   # every playbook in check mode, one host at a time; _p
   ticked items from the backlog. `CHANGELOG.md` and git history keep them.
 - Add each new learning to `docs/agents/learnings.md`, in the correct section. Do not put
   learnings in other files.
-- Use conventional commits. Keep them short, and commit often on branch `fix-setup`. End each
-  message with `Co-Authored-By: agent smith <craigts-agent@users.noreply.github.com>`. craig
-  merges and pushes. Never push.
+- Use conventional commits. Keep them short, and commit often. End each message with
+  `Co-Authored-By: agent smith <craigts-agent@users.noreply.github.com>`. craig merges and
+  pushes. Never push.
 - Role variables are flat and have the role name as prefix (`ubuntu_vm_*`). Overrides are in
   `inventories/prod/group_vars` and `host_vars`.
 - A major-upgrade playbook is `playbooks/<component>_upgrade.yml` (`ceph_upgrade.yml`). Put
