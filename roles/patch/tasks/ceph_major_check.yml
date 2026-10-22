@@ -1,6 +1,7 @@
 ---
 # Before a Ceph major upgrade (playbooks/ceph_upgrade.yml), once: every daemon
-# runs patch_ceph_major_from, the cluster is healthy, every node runs PVE 9.2+.
+# runs patch_ceph_major_from, the cluster is healthy, every node runs
+# patch_ceph_major_min_pve or later.
 - name: Read Ceph daemon versions
   ansible.builtin.command: ceph versions -f json
   register: patch_ceph_versions
@@ -19,10 +20,10 @@
   ansible.builtin.assert:
     that:
       - (patch_ceph_versions.stdout | from_json).overall.keys() | reject('search', ' ' ~ patch_ceph_major_from ~ ' ') | list | length == 0
-      - patch_pve_manager.results | map(attribute='stdout') | select('version', '9.2', '<') | list | length == 0
+      - patch_pve_manager.results | map(attribute='stdout') | select('version', patch_ceph_major_min_pve, '<') | list | length == 0
     fail_msg: >-
       Ceph {{ (patch_ceph_versions.stdout | from_json).overall.keys() | list }} (expected only {{ patch_ceph_major_from }}),
-      pve-manager {{ patch_pve_manager.results | map(attribute='stdout') | list }} (needs 9.2+)
+      pve-manager {{ patch_pve_manager.results | map(attribute='stdout') | list }} (needs {{ patch_ceph_major_min_pve }}+)
     quiet: true
 
 - name: Check Ceph is healthy

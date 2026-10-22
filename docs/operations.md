@@ -243,7 +243,7 @@ reboots (used 2026-10-17/19). Run it stage by stage with `--tags`, and `--check`
 
 | Tag | What it does |
 | --- | --- |
-| `check` | makes sure that all daemons run `patch_ceph_major_from`, Ceph is healthy and PVE is 9.2 or later. Disables the removed mgr modules and sets noout |
+| `check` | makes sure that all daemons run `patch_ceph_major_from`, Ceph is healthy and PVE is `patch_ceph_major_min_pve` or later. Disables the removed mgr modules and sets noout |
 | `repo` | sets `ceph.sources` to the new release and runs dist-upgrade per node, pve3 first |
 | `mon`, `mgr` | restarts the mons, then the mgrs |
 | `osd` | restarts the OSDs per node and waits for active+clean |
