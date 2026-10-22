@@ -1,0 +1,135 @@
+---
+argument_specs:
+  main:
+    short_description: Proxmox VE node (apt, kernel, network, users, CephFS snapshots)
+    options:
+      proxmox_node_packages:
+        type: list
+        elements: str
+        default:
+          - ethtool
+          - fio
+          - hdparm
+          - iftop
+          - iperf3
+          - ipmitool
+          - lm-sensors
+          - nfs-common
+        description: Utility packages.
+      proxmox_node_apt_absent:
+        type: list
+        elements: str
+        default:
+          - /etc/apt/sources.list.d/proxmox.list
+          - /etc/apt/sources.list.d/ceph.list
+          - /etc/apt/sources.list.d/pve-enterprise.list
+        description: Apt source files removed when found.
+      proxmox_node_packages_absent:
+        type: list
+        elements: str
+        default: [linux-image-amd64, linux-headers-amd64, openipmi]
+        description: Packages purged when found.
+      proxmox_node_files_absent:
+        type: list
+        elements: str
+        default: [/etc/rc.local, /etc/default/cpufreq]
+        description: Files removed when found.
+      proxmox_node_apt_files:
+        type: list
+        elements: dict
+        default:
+          - {src: apt/sources.list, dest: /etc/apt/sources.list}
+          - {src: apt/debian.sources, dest: /etc/apt/sources.list.d/debian.sources}
+          - {src: apt/proxmox.sources, dest: /etc/apt/sources.list.d/proxmox.sources}
+          - src: apt/pve-enterprise.sources
+            dest: /etc/apt/sources.list.d/pve-enterprise.sources
+          - {src: apt/pve-test.sources, dest: /etc/apt/sources.list.d/pve-test.sources}
+          - {src: apt/no-nag-script, dest: /etc/apt/apt.conf.d/no-nag-script}
+          - {src: apt/proxmox-zfs.pref, dest: /etc/apt/preferences.d/proxmox-zfs}
+        description: Apt sources and hooks copied from files/.
+        options:
+          src:
+            type: str
+            required: true
+            description: File under files/.
+          dest:
+            type: str
+            required: true
+            description: Path on the node.
+      proxmox_node_ceph_repo: &ceph_repo
+        type: dict
+        default: {release: tentacle, component: no-subscription, enabled: true}
+        description: The Ceph apt source (ceph.sources). Set to the release that the cluster runs.
+        options:
+          release:
+            type: str
+            required: true
+            description: Ceph release name (tentacle).
+          component:
+            type: str
+            required: true
+            choices: [enterprise, no-subscription, test]
+            description: Repository component.
+          enabled:
+            type: bool
+            required: true
+            description: Enable the source.
+      proxmox_node_lab_backup:
+        type: dict
+        default:
+          src: 192.168.1.50:/volume2/lab-backup
+          path: /mnt/lab-backup
+          opts: rw,sync,hard
+        description: NFS mount of the NAS lab-backup share.
+        options:
+          src:
+            type: str
+            required: true
+            description: NFS source (host:/path).
+          path:
+            type: str
+            required: true
+            description: Mount point.
+          opts:
+            type: str
+            required: true
+            description: Mount options.
+      proxmox_node_ceph_address:
+        type: str
+        default: ''
+        description: Address of the node on the Ceph network (host_vars).
+      proxmox_node_ansible_user_key:
+        type: str
+        default: ''
+        description: Public SSH key of the ansible user (host_vars).
+      proxmox_node_cephfs_storage:
+        type: str
+        default: ceph_fs
+        description: PVE CephFS storage that the snapshot timer uses.
+      proxmox_node_cephfs_mount:
+        type: str
+        default: /mnt/pve/{{ proxmox_node_cephfs_storage }}
+        description: Mount point of that storage.
+      proxmox_node_cephfs_snapshots:
+        type: list
+        elements: dict
+        default:
+          - {dir: docker, keep: 3}
+        description: Directories with a daily snapshot.
+        options:
+          dir:
+            type: str
+            required: true
+            description: Directory under the CephFS root.
+          keep:
+            type: int
+            required: true
+            description: Number of scheduled-* snapshots to keep.
+      proxmox_node_cephfs_snapshot_time:
+        type: str
+        default: "01:15:00"
+        description: Time of the daily snapshot, UTC.
+  ceph_repo:
+    short_description: The Ceph apt source only (used by ceph_upgrade.yml)
+    options:
+      proxmox_node_ceph_repo: *ceph_repo

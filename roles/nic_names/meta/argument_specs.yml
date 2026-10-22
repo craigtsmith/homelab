@@ -1,0 +1,6 @@
+---
+# nic_names_pinned is derived from facts and is not validated here.
+argument_specs:
+  main:
+    short_description: Pin NIC names to their MAC addresses
+    options: {}

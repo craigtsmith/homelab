@@ -1,0 +1,92 @@
+---
+# docker_host_repo_codename and docker_host_engine_version are derived from facts
+# and docker_host_engine_versions, and are not validated here.
+argument_specs:
+  main:
+    short_description: Docker engine and swarm membership
+    options:
+      docker_host_role:
+        type: str
+        choices: [manager, worker]
+        default: "{{ kind | default('manager') }}"
+        description: Swarm role of the host (inventory variable `kind`).
+      docker_host_manager:
+        type: str
+        default: "{{ groups['docker_hosts'] | first }}"
+        description: Manager that workers join through.
+      docker_host_join_swarm:
+        type: bool
+        default: true
+        description: Join or initialise the swarm. false converges without a swarm (test VMs, a manager that waits for a restore).
+      docker_host_repo_url: &repo_url
+        type: str
+        default: https://download.docker.com/linux/ubuntu
+        description: Docker apt repository.
+      docker_host_repo_arch: &repo_arch
+        type: str
+        default: amd64
+        description: Architecture of the apt repository.
+      docker_host_repo_key_checksum: &repo_key_checksum
+        type: str
+        default: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+        description: Checksum of the repository key. A rotated key fails the run.
+      docker_host_engine_versions: &engine_versions
+        type: dict
+        default: {noble: 5:29.9.1-1~ubuntu.24.04~noble}
+        description: Pinned engine version by Ubuntu codename. The packages are held.
+      docker_host_engine_packages: &engine_packages
+        type: list
+        elements: str
+        default: [docker-ce, docker-ce-cli]
+        description: Engine packages, pinned and held.
+      docker_host_portainer_stack:
+        type: str
+        default: portainer-traefik
+        description: Name of the Portainer and Traefik bootstrap stack. Deployed only when absent.
+      docker_host_portainer_image:
+        type: str
+        default: portainer/portainer-ee:sts
+        description: Portainer server image of the bootstrap stack.
+      docker_host_portainer_agent_image:
+        type: str
+        default: portainer/agent:sts
+        description: Portainer agent image of the bootstrap stack.
+      docker_host_portainer_data_path:
+        type: str
+        default: /var/lib/portainer
+        description: Portainer data directory.
+      docker_host_traefik_image:
+        type: str
+        default: traefik:v3.7.15
+        description: Traefik image of the bootstrap stack.
+      docker_host_stack_dir:
+        type: str
+        default: /home/serveradmin
+        description: Directory of the bootstrap stack file on the manager.
+      docker_host_dirs:
+        type: list
+        elements: dict
+        default: []
+        description: Host directories that swarm services bind-mount.
+        options:
+          path:
+            type: str
+            required: true
+            description: Directory.
+          owner:
+            type: raw
+            description: Owner (name or UID).
+          group:
+            type: raw
+            description: Group (name or GID).
+          mode:
+            type: str
+            description: Mode, for example "0755".
+  install-docker:
+    short_description: Docker engine only (used by appbox_server)
+    options:
+      docker_host_repo_url: *repo_url
+      docker_host_repo_arch: *repo_arch
+      docker_host_repo_key_checksum: *repo_key_checksum
+      docker_host_engine_versions: *engine_versions
+      docker_host_engine_packages: *engine_packages

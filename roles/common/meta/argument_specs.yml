@@ -1,0 +1,9 @@
+---
+argument_specs:
+  main:
+    short_description: SSH key for the become user
+    options:
+      common_authorized_key:
+        type: bool
+        default: true
+        description: Add the controller's public key (ssh_public_key) to the become user (root).

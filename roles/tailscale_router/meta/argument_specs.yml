@@ -1,0 +1,28 @@
+---
+# Not validated here: tailscale_router_authkey (1Password lookup, read only at a
+# login), and tailscale_router_codename and tailscale_router_gro_iface (facts).
+argument_specs:
+  main:
+    short_description: Tailscale node, subnet router where routes are set
+    options:
+      tailscale_router_routes:
+        type: list
+        elements: str
+        default: [192.168.100.0/24]
+        description: Subnets to advertise. Empty advertises none.
+      tailscale_router_accept_dns:
+        type: bool
+        default: true
+        description: Use the tailnet DNS settings.
+      tailscale_router_accept_routes:
+        type: bool
+        default: false
+        description: Use subnet routes that other nodes advertise.
+      tailscale_router_udp_gro:
+        type: bool
+        default: true
+        description: UDP GRO forwarding on the uplink (kernel 6.2 or newer).
+      tailscale_router_auto_update:
+        type: bool
+        default: true
+        description: tailscaled updates itself, so the package is not pinned.

@@ -1,0 +1,24 @@
+---
+# Not validated here: portainer_stacks_api_key, and portainer_stacks, whose env
+# values are 1Password lookups. Validation resolves every listed variable.
+argument_specs:
+  main:
+    short_description: Compare and update Portainer stacks on the swarm
+    options:
+      portainer_stacks_url:
+        type: str
+        default: https://portainer.{{ domain }}/api
+        description: Portainer API URL.
+      portainer_stacks_endpoint_id:
+        type: int
+        default: 7
+        description: Portainer environment ID of the swarm.
+      portainer_stacks_dir:
+        type: str
+        default: '{{ playbook_dir }}/../stacks/swarm'
+        description: Directory of the stack templates (<name>.yml.j2).
+      portainer_stacks_only:
+        type: list
+        elements: str
+        default: []
+        description: Limit the run to these stack names. Empty means all.

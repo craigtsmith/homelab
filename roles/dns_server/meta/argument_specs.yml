@@ -1,0 +1,113 @@
+---
+# dns_server_admin_password_hash is a 1Password lookup and is not validated here.
+argument_specs:
+  main:
+    short_description: AdGuard Home on a Debian LXC
+    options:
+      dns_server_version:
+        type: str
+        default: v0.107.79
+        description: AdGuard Home release tag.
+      dns_server_checksum:
+        type: str
+        default: sha256:c48f4a43000665484c5ec28177de11a004759b620dae8f77b2aabefc9ef3687f
+        description: sha256 of AdGuardHome_linux_amd64.tar.gz, from checksums.txt of the release.
+      dns_server_url:
+        type: str
+        default: https://github.com/AdguardTeam/AdGuardHome/releases/download/{{ dns_server_version }}/AdGuardHome_linux_amd64.tar.gz
+        description: Download URL of the release archive.
+      dns_server_dir:
+        type: str
+        default: /opt/AdGuardHome
+        description: Install directory.
+      dns_server_admin_user:
+        type: str
+        default: admin
+        description: Web UI user.
+      dns_server_upstreams:
+        type: list
+        elements: str
+        default: []
+        description: Upstream DNS servers.
+      dns_server_bootstrap:
+        type: list
+        elements: str
+        default: []
+        description: Bootstrap DNS servers.
+      dns_server_upstream_mode:
+        type: str
+        default: parallel
+        description: AdGuard upstream mode.
+      dns_server_ratelimit:
+        type: int
+        default: 20
+        description: Requests per second per client.
+      dns_server_filters:
+        type: list
+        elements: dict
+        default: []
+        description: Blocklists.
+        options:
+          id:
+            type: int
+            required: true
+            description: AdGuard filter ID (cache file data/filters/<id>.txt).
+          name:
+            type: str
+            required: true
+            description: Display name.
+          url:
+            type: str
+            required: true
+            description: List URL.
+          enabled:
+            type: bool
+            description: Use the list.
+      dns_server_user_rules:
+        type: list
+        elements: str
+        default: []
+        description: Custom filtering rules.
+      dns_server_rewrites:
+        type: list
+        elements: dict
+        default: []
+        description: DNS rewrites.
+        options:
+          domain:
+            type: str
+            required: true
+            description: Name, wildcards permitted.
+          answer:
+            type: str
+            required: true
+            description: Address or name to answer with.
+      dns_server_clients:
+        type: list
+        elements: dict
+        default: []
+        description: Persistent clients.
+        options:
+          name:
+            type: str
+            required: true
+            description: Client name.
+          ids:
+            type: raw
+            description: Client IDs, addresses or MACs.
+          uid:
+            type: str
+            description: AdGuard client UID.
+          upstreams:
+            type: list
+            elements: str
+            description: Upstreams for this client.
+          upstreams_cache_enabled:
+            type: bool
+            description: Cache the client's upstream answers.
+          filtering_enabled:
+            type: bool
+            description: Filter this client.
+          ignore_querylog:
+            type: bool
+            description: Leave this client out of the query log.

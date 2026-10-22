@@ -1,0 +1,63 @@
+---
+# ceph_client_key is a 1Password lookup and is not validated here.
+argument_specs:
+  main:
+    short_description: ceph-common and the CephFS mount on Ubuntu VMs
+    options:
+      ceph_client_mount:
+        type: bool
+        default: true
+        description: Mount CephFS. false removes the mount, its automount unit and the key. ceph-common stays.
+      ceph_client_name:
+        type: str
+        default: vm_cephfs
+        description: cephx user of the mount.
+      ceph_client_keyring:
+        type: str
+        default: /etc/ceph/ceph.client.{{ ceph_client_name }}.keyring
+        description: Path of the keyring file.
+      ceph_client_retired_names:
+        type: list
+        elements: str
+        default: [vm_access]
+        description: cephx users of earlier mounts. Their keyrings are removed when found.
+      ceph_client_kernel_package:
+        type: str
+        default: linux-generic-hwe-24.04
+        description: Kernel package for the CephFS client. aes256k keys need kernel 7.0 or newer.
+      ceph_client_repo_release:
+        type: str
+        default: tentacle
+        description: Ceph release of the download.ceph.com repository. Match the cluster.
+      ceph_client_repo_url:
+        type: str
+        default: https://download.ceph.com/debian-{{ ceph_client_repo_release }}/
+        description: Ceph repository URL.
+      ceph_client_min_version:
+        type: str
+        default: '20.2'
+        description: Lowest ceph-common version that the role accepts.
+      ceph_client_keyring_url:
+        type: str
+        default: https://download.ceph.com/keys/release.gpg
+        description: URL of the Ceph release key.
+      ceph_client_keyring_checksum:
+        type: str
+        default: sha256:feb43775d34cdd31bb78e32e0901f6d44aa76b086eebf0a6fb8aad76453e9ff8
+        description: Checksum of the Ceph release key.
+      ceph_client_mount_src:
+        type: str
+        default: p1.{{ domain }},p2.{{ domain }},p3.{{ domain }}:/
+        description: Mount source (mon addresses and path).
+      ceph_client_mount_path:
+        type: str
+        default: /mnt/cephfs
+        description: Mount point.
+      ceph_client_mount_opts:
+        type: str
+        default: name={{ ceph_client_name }},secretfile={{ ceph_client_keyring }},_netdev,noauto,x-systemd.automount,nofail,noatime,comment=cloudconfig
+        description: Mount options.
+      ceph_client_automount:
+        type: str
+        default: "{{ ceph_client_mount_path | regex_replace('^/', '') | replace('/', '-') }}.automount"
+        description: Name of the systemd automount unit of the mount point.

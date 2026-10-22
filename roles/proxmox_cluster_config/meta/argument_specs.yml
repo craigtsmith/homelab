@@ -1,0 +1,80 @@
+---
+# Not validated here: proxmox_cluster_config_pbs_password and
+# proxmox_cluster_config_api_token_secret (1Password lookups), and the derived
+# values (*_selected, proxmox_cluster_config_ha, *_api_url, *_api_auth_header).
+argument_specs:
+  main:
+    short_description: Cluster-wide config in /etc/pve, per object
+    options:
+      proxmox_cluster_config_files:
+        type: list
+        elements: dict
+        default:
+          - {src: datacenter.cfg, dest: datacenter.cfg}
+          - {src: domains.cfg, dest: domains.cfg}
+          - {src: storage.cfg, dest: storage.cfg}
+          - {src: jobs.cfg, dest: jobs.cfg}
+          - {src: user.cfg, dest: user.cfg}
+          - {src: mapping-usb.cfg, dest: mapping/usb.cfg}
+        description: Cluster files that the role compares, from files/.
+        options:
+          src:
+            type: str
+            required: true
+            description: File under files/.
+          dest:
+            type: str
+            required: true
+            description: Path under /etc/pve.
+      proxmox_cluster_config_write:
+        type: bool
+        default: false
+        description: Revert. Apply the repo objects with pvesh. Never deletes.
+      proxmox_cluster_config_capture:
+        type: bool
+        default: false
+        description: Promote. Copy the live files into files/. Do not set it together with proxmox_cluster_config_write.
+      proxmox_cluster_config_only:
+        type: list
+        elements: str
+        default: []
+        description: Limit a revert to these objects (storage:pbs, ha:docker1) and a promote to these files (jobs.cfg). Empty means all.
+      proxmox_cluster_config_fail_on_drift:
+        type: bool
+        default: false
+        description: Fail the play when the report finds differences.
+      proxmox_cluster_config_ha_resource_affinity:
+        type: list
+        elements: dict
+        default: []
+        description: HA resource-affinity rules by readable ID. Revert one with ha:<rule>.
+        options:
+          rule:
+            type: str
+            required: true
+            description: Rule ID.
+          affinity:
+            type: str
+            required: true
+            choices: [positive, negative]
+            description: Keep the resources together (positive) or apart (negative).
+          resources:
+            type: list
+            elements: str
+            required: true
+            description: HA resources (vm:<id>, ct:<id>).
+          comment:
+            type: str
+            description: Rule comment.
+      proxmox_cluster_config_api_host:
+        type: str
+        default: '{{ ansible_host }}'
+        description: Proxmox API host.
+      proxmox_cluster_config_api_user:
+        type: str
+        default: ansible@pam
+        description: User of the API token.
+      proxmox_cluster_config_api_token_id:
+        type: str
+        default: ansible
+        description: Name of the API token.

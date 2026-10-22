@@ -1,0 +1,101 @@
+---
+# Not validated here, derived from facts: ubuntu_vm_net_iface, ubuntu_vm_nic_queues
+# and ubuntu_vm_rps_cpus.
+argument_specs:
+  main:
+    short_description: Base for the Ubuntu 24.04 VMs
+    options:
+      ubuntu_vm_upgrade:
+        type: bool
+        default: false
+        description: Run apt upgrade. Off, so a converge never upgrades a live host (patch.yml does).
+      ubuntu_vm_base_packages:
+        type: list
+        elements: str
+        default: [iftop, ncdu, iperf3]
+        description: Base packages.
+      ubuntu_vm_timezone:
+        type: str
+        default: '{{ tz }}'
+        description: Timezone.
+      ubuntu_vm_hostname:
+        type: str
+        default: '{{ inventory_hostname }}.{{ domain }}'
+        description: Hostname (FQDN).
+      ubuntu_vm_dns_override:
+        type: bool
+        default: true
+        description: systemd-resolved split DNS for the lab domain.
+      ubuntu_vm_dns_override_file:
+        type: str
+        default: /etc/systemd/resolved.conf.d/{{ domain.split('.') | first }}.conf
+        description: resolved.conf drop-in of the split DNS.
+      ubuntu_vm_mounts:
+        type: list
+        elements: dict
+        default: []
+        description: fstab entries that the role mounts (NAS shares, data disks).
+        options:
+          src:
+            type: str
+            required: true
+            description: Source (host:/path, UUID=, or a device).
+          path:
+            type: str
+            required: true
+            description: Mount point.
+          fstype:
+            type: str
+            required: true
+            description: Filesystem type.
+          opts:
+            type: str
+            required: true
+            description: Mount options.
+          passno:
+            type: str
+            description: fsck pass number.
+          mkfs:
+            type: bool
+            description: Make the filesystem when the device has none.
+      ubuntu_vm_static_routes:
+        type: list
+        elements: dict
+        default: []
+        description: Static routes on the main NIC.
+        options:
+          to:
+            type: str
+            required: true
+            description: Destination network (CIDR).
+          via:
+            type: str
+            required: true
+            description: Gateway address.
+      ubuntu_vm_pgdg_repo:
+        type: bool
+        default: false
+        description: Add the PostgreSQL (pgdg) apt repository.
+      ubuntu_vm_net_tuning:
+        type: bool
+        default: true
+        description: Network sysctls and the NIC queue and RPS units.
+      ubuntu_vm_rps_flow_cnt:
+        type: int
+        default: 2048
+        description: rps_flow_cnt per receive queue.
+      ubuntu_vm_rps_sock_flow_entries:
+        type: int
+        default: 32768
+        description: net.core.rps_sock_flow_entries.
+      ubuntu_vm_sysctls:
+        type: dict
+        default:
+          net.core.rmem_max: 16777216
+          net.core.wmem_max: 16777216
+          net.core.netdev_max_backlog: 25000
+          net.core.somaxconn: 16384
+          net.ipv4.tcp_mtu_probing: 1
+          net.core.default_qdisc: fq
+          net.ipv4.tcp_congestion_control: bbr
+        description: Network sysctls.

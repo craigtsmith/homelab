@@ -1,0 +1,24 @@
+---
+argument_specs:
+  main:
+    short_description: Base for Ansible-built Debian LXCs
+    options:
+      debian_lxc_packages:
+        type: list
+        elements: str
+        default: [bind9-dnsutils, ca-certificates, curl, less, lsof]
+        description: Base packages.
+      debian_lxc_static_routes:
+        type: list
+        elements: dict
+        default: []
+        description: Extra routes on eth0, applied by a oneshot unit.
+        options:
+          to:
+            type: str
+            required: true
+            description: Destination network (CIDR).
+          via:
+            type: str
+            required: true
+            description: Gateway address.

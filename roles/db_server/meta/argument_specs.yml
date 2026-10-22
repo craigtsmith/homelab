@@ -1,0 +1,70 @@
+---
+argument_specs:
+  main:
+    short_description: PostgreSQL, MySQL and Valkey on db1, with hourly dumps
+    options:
+      db_server_user:
+        type: str
+        default: '{{ db_user.name }}'
+        description: Admin user of the databases.
+      db_server_python_packages:
+        type: list
+        elements: str
+        default: [python3-psycopg2, python3-pymysql]
+        description: Python libraries for the database modules.
+      db_server_postgres_version:
+        type: int
+        default: 17
+        description: PostgreSQL major from pgdg. Needs ubuntu_vm_pgdg_repo.
+      db_server_postgres_conf_dir:
+        type: str
+        default: /etc/postgresql/{{ db_server_postgres_version }}/main
+        description: PostgreSQL configuration directory.
+      db_server_postgres_hba:
+        type: str
+        default: '{{ db_server_postgres_conf_dir }}/pg_hba.conf'
+        description: Path of pg_hba.conf.
+      db_server_postgres_settings:
+        type: dict
+        default:
+          listen_addresses: "'*'"
+          max_connections: 200
+          shared_buffers: 2GB
+          effective_cache_size: 5GB
+        description: postgresql.conf settings.
+      db_server_mysql_series:
+        type: str
+        default: mysql-8.4-lts
+        description: MySQL series in repo.mysql.com.
+      db_server_mysql_key_url:
+        type: str
+        default: https://repo.mysql.com/RPM-GPG-KEY-mysql-2025
+        description: URL of the MySQL repository key.
+      db_server_valkey_repo:
+        type: str
+        default: valkey-80
+        description: Percona Valkey repository.
+      db_server_valkey_conf:
+        type: str
+        default: /etc/valkey/valkey.conf
+        description: Path of valkey.conf.
+      db_server_valkey_settings:
+        type: dict
+        default: {bind: 0.0.0.0 ::1, protected-mode: "no"}
+        description: valkey.conf settings.
+      db_server_backup_dir:
+        type: str
+        default: /var/backups
+        description: Directory of the latest dumps (in the nightly PBS backup).
+      db_server_backup_nas_mount:
+        type: str
+        default: /mnt/lab-backup
+        description: NAS mount for the hourly and daily dump slots.
+      db_server_backup_nas_path:
+        type: str
+        default: db-backups/{{ inventory_hostname }}
+        description: Directory under the NAS mount.
+      db_server_backup_on_calendar:
+        type: str
+        default: hourly
+        description: OnCalendar of the dump timer.

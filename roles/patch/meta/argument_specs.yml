@@ -1,0 +1,178 @@
+---
+# The playbooks include one task file per stage (tasks_from), so every stage has
+# its own entry point. Options are defined once (anchors) and shared.
+argument_specs:
+  main:
+    short_description: A guest's whole run, packages then a reboot when needed
+    options:
+      patch_majors: &majors
+        type: dict
+        default: {}
+        description: Package name to the major version a dist-upgrade can install. Another major stops the run.
+      patch_allowed_removals: &allowed_removals
+        type: list
+        elements: str
+        default: []
+        description: Packages a dist-upgrade can remove. Any other removal stops the run.
+      patch_purge: &purge
+        type: list
+        elements: str
+        default: []
+        description: Packages purged after the upgrade when installed. The purge must remove nothing else.
+      patch_reboot: &reboot
+        type: str
+        choices: [auto, always, never]
+        default: auto
+        description: auto reboots when /var/run/reboot-required exists or a newer kernel is in /boot.
+      patch_swarm_manager: &swarm_manager
+        type: str
+        default: "{{ hostvars[groups['docker_hosts'][0]].docker_host_manager }}"
+        description: Swarm manager that runs the swarm commands.
+      patch_wait_retries: &wait_retries
+        type: int
+        default: 90
+        description: Retries of each wait, 10 seconds apart.
+  packages:
+    short_description: dist-upgrade after a dry run
+    options:
+      patch_majors: *majors
+      patch_allowed_removals: *allowed_removals
+      patch_purge: *purge
+  reboot_needed:
+    short_description: Decide if this host needs a reboot
+    options:
+      patch_reboot: *reboot
+  guest_reboot:
+    short_description: Reboot a VM or LXC, docker hosts drained first
+    options:
+      patch_reboot: *reboot
+      patch_swarm_manager: *swarm_manager
+      patch_wait_retries: *wait_retries
+  node_reboot:
+    short_description: Reboot a Proxmox node with its guests handled
+    options:
+      patch_reboot: *reboot
+      patch_ride_guests:
+        type: list
+        elements: str
+        default: "{{ groups['docker_hosts'] }}"
+        description: Guests that stay on the node through the reboot (docker VMs). Every other running guest moves with HA.
+      patch_ceph_ignored_checks: &ceph_ignored_checks
+        type: list
+        elements: str
+        default: []
+        description: Ceph health checks that do not block a wait.
+      patch_ceph_also_ignored: &ceph_also_ignored
+        type: list
+        elements: str
+        description: More health checks that do not block, set by a play.
+      patch_swarm_manager: *swarm_manager
+      patch_wait_retries: *wait_retries
+  ceph_restart:
+    short_description: Restart this node's mon or mgr when an upgrade installed a newer version
+    options:
+      patch_ceph_restart_daemons:
+        type: list
+        elements: str
+        default: [mon, mgr]
+        description: Daemons to restart per node, in Ceph's order.
+      patch_ceph_ignored_checks: *ceph_ignored_checks
+      patch_ceph_also_ignored: *ceph_also_ignored
+      patch_wait_retries: *wait_retries
+  ceph_restart_osd:
+    short_description: Restart this node's OSDs and wait for active+clean
+    options:
+      patch_ceph_ignored_checks: *ceph_ignored_checks
+      patch_ceph_also_ignored: *ceph_also_ignored
+      patch_wait_retries: *wait_retries
+  ceph_restart_mds:
+    short_description: Restart the MDS daemons, standbys first stopped
+    options:
+      patch_ceph_fs:
+        type: str
+        default: cephfs
+        description: CephFS file system name.
+      patch_ceph_major_to: &major_to
+        type: str
+        default: tentacle
+        description: Release the Ceph major upgrade goes to, as `ceph versions` shows it.
+      patch_ceph_ignored_checks: *ceph_ignored_checks
+      patch_ceph_also_ignored: *ceph_also_ignored
+      patch_wait_retries: *wait_retries
+  swarm_stop:
+    short_description: Swarm-down mode, before the first node reboot
+    options:
+      patch_stop_swarm: &stop_swarm
+        type: bool
+        default: false
+        description: Scale the apps to 0 and stop the docker VMs for the node reboots. false lets the docker VMs ride.
+      patch_swarm_hosts: &swarm_hosts
+        type: list
+        elements: str
+        default: "{{ groups['docker_hosts'] }}"
+        description: Docker VMs that swarm-down mode stops and starts (inventory name is the VM name).
+      patch_swarm_stop_order: &swarm_stop_order
+        type: list
+        elements: str
+        default: "{{ patch_swarm_hosts | reject('eq', patch_swarm_manager) | reverse | list + [patch_swarm_manager] }}"
+        description: Stop order, workers first and the manager last. Start is the reverse.
+      patch_swarm_keep_stacks:
+        type: list
+        elements: str
+        default: [portainer-traefik, rustfs, portainer-update-.*]
+        description: Stacks (regexes) whose services keep running.
+      patch_swarm_record: &swarm_record
+        type: str
+        default: /root/patch-swarm-replicas.json
+        description: File on the manager with the recorded replica counts.
+      patch_swarm_manager: *swarm_manager
+      patch_wait_retries: *wait_retries
+  swarm_start:
+    short_description: Swarm-down mode, after the last node reboot
+    options:
+      patch_stop_swarm: *stop_swarm
+      patch_swarm_hosts: *swarm_hosts
+      patch_swarm_stop_order: *swarm_stop_order
+      patch_swarm_record: *swarm_record
+      patch_swarm_manager: *swarm_manager
+      patch_wait_retries: *wait_retries
+  ceph_major_check:
+    short_description: Ceph major upgrade, the starting point and noout
+    options:
+      patch_ceph_major_from:
+        type: str
+        default: squid
+        description: Release that every daemon must run before the upgrade.
+      patch_ceph_major_min_pve:
+        type: str
+        default: '9.2'
+        description: Lowest pve-manager that the new release supports.
+      patch_ceph_major_disable_modules:
+        type: list
+        elements: str
+        default: [restful, zabbix]
+        description: mgr modules that the new release removed. Disabled before the upgrade.
+      patch_ceph_ignored_checks: *ceph_ignored_checks
+      patch_ceph_also_ignored: *ceph_also_ignored
+      patch_wait_retries: *wait_retries
+  ceph_major_packages:
+    short_description: Ceph major upgrade, the new repository and dist-upgrade on one node
+    options:
+      patch_ceph_major_repo:
+        type: dict
+        default: {release: '{{ patch_ceph_major_to }}', component: no-subscription, enabled: true}
+        description: proxmox_node_ceph_repo for the new release.
+      patch_ceph_major_majors:
+        type: dict
+        default: {pve-manager: '9', ceph-common: '20'}
+        description: Majors that the upgrade can install (patch_majors for this run).
+      patch_majors: *majors
+      patch_allowed_removals: *allowed_removals
+      patch_purge: *purge
+  ceph_major_finish:
+    short_description: Ceph major upgrade, require-osd-release and unset noout
+    options:
+      patch_ceph_major_to: *major_to
+      patch_ceph_ignored_checks: *ceph_ignored_checks
+      patch_ceph_also_ignored: *ceph_also_ignored
+      patch_wait_retries: *wait_retries

@@ -1,0 +1,19 @@
+---
+argument_specs:
+  main:
+    short_description: Database clients and media tools on util1
+    options:
+      util_server_postgres_client_version:
+        type: int
+        default: 17
+        description: PostgreSQL client major from pgdg. Match db_server_postgres_version.
+      util_server_packages:
+        type: list
+        elements: str
+        default:
+          - redis-tools
+          - mysql-client
+          - postgresql-client-{{ util_server_postgres_client_version }}
+          - ffmpeg
+          - unzip
+        description: Packages to install.

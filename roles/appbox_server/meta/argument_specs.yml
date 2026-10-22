@@ -1,0 +1,93 @@
+---
+argument_specs:
+  main:
+    short_description: appbox1, the Docker VPS at Appbox
+    options:
+      appbox_server_hostname:
+        type: str
+        default: '{{ inventory_hostname }}'
+        description: Hostname of the VM.
+      appbox_server_timezone:
+        type: str
+        default: '{{ tz }}'
+        description: Timezone of the VM.
+      appbox_server_packages:
+        type: list
+        elements: str
+        default: [nfs-common, ufw, htop, jq, ncdu]
+        description: Base packages.
+      appbox_server_ssh_port:
+        type: int
+        default: 22
+        description: sshd port inside the VM. Appbox sends the public port (ansible_port) to it.
+      appbox_server_open_ports:
+        type: list
+        elements: dict
+        default: []
+        description: Ports that ufw opens to the internet in addition to SSH (P2P listen ports).
+        options:
+          port:
+            type: int
+            required: true
+            description: Port number.
+          proto:
+            type: str
+            choices: [tcp, udp, any]
+            description: Protocol.
+          comment:
+            type: str
+            description: ufw rule comment.
+      appbox_server_mounts:
+        type: list
+        elements: dict
+        default: []
+        description: NFS mounts from the NAS over Tailscale, mounted at boot.
+        options:
+          src:
+            type: str
+            required: true
+            description: NFS source (host:/path).
+          path:
+            type: str
+            required: true
+            description: Mount point.
+      appbox_server_mount_opts:
+        type: str
+        default: nfs4 rw,hard,noatime,_netdev,nofail,x-systemd.requires=tailscaled.service,x-systemd.after=network-online.target,x-systemd.mount-timeout=180
+        description: fstype and options for every entry in appbox_server_mounts.
+      appbox_server_compose_dir:
+        type: str
+        default: /opt/appbox
+        description: Directory of the compose project on the VM.
+      appbox_server_compose_src:
+        type: str
+        default: ''
+        description: Compose template in this repo (stacks/appbox1/).
+      appbox_server_compose_env:
+        type: dict
+        default: {}
+        description: Values for the project's .env file.
+      appbox_server_compose_services:
+        type: list
+        elements: str
+        default: []
+        description: Services to start. Empty starts all.
+      appbox_server_dirs:
+        type: list
+        elements: dict
+        default: []
+        description: Host directories that the containers bind-mount.
+        options:
+          path:
+            type: str
+            required: true
+            description: Directory.
+          owner:
+            type: raw
+            description: Owner (name or UID).
+          group:
+            type: raw
+            description: Group (name or GID).
+          mode:
+            type: str
+            description: Mode, for example "0755".

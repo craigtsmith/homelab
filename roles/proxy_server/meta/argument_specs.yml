@@ -1,0 +1,86 @@
+---
+# proxy_server_cloudflare_token is a 1Password lookup and is not validated here.
+argument_specs:
+  main:
+    short_description: nginx reverse proxy with certbot DNS-01 certificates
+    options:
+      proxy_server_packages:
+        type: list
+        elements: str
+        default: [nginx, certbot, python3-certbot-dns-cloudflare]
+        description: Packages (nginx, certbot and its Cloudflare plugin).
+      proxy_server_acme_email:
+        type: str
+        default: admin@{{ domain }}
+        description: Let's Encrypt account e-mail.
+      proxy_server_acme_server:
+        type: str
+        default: https://acme-v02.api.letsencrypt.org/directory
+        description: ACME directory. Test LXCs use the staging directory.
+      proxy_server_certs:
+        type: list
+        elements: dict
+        default: []
+        description: Certificates, issued once when missing. certbot.timer renews them.
+        options:
+          name:
+            type: str
+            required: true
+            description: certbot cert name (/etc/letsencrypt/live/<name>).
+          domains:
+            type: list
+            elements: str
+            required: true
+            description: Names on the certificate.
+      proxy_server_hosts:
+        type: list
+        elements: dict
+        default: []
+        description: Proxy hosts. Missing keys come from proxy_server_host_defaults.
+        options:
+          names:
+            type: list
+            elements: str
+            required: true
+            description: Server names.
+          upstream:
+            type: str
+            required: true
+            description: Upstream URL.
+          cert:
+            type: str
+            description: Name in proxy_server_certs.
+          force_ssl:
+            type: bool
+            description: Redirect HTTP to HTTPS.
+          websocket:
+            type: bool
+            description: Pass WebSocket upgrades.
+          http2:
+            type: bool
+            description: Serve HTTP/2.
+          hsts:
+            type: bool
+            description: Send Strict-Transport-Security.
+          cache_assets:
+            type: bool
+            description: Cache static assets.
+          advanced:
+            type: str
+            description: Extra nginx lines for the server block.
+      proxy_server_host_defaults:
+        type: dict
+        default:
+          cert: wildcard
+          force_ssl: true
+          websocket: true
+          http2: true
+          hsts: true
+          cache_assets: false
+          advanced: ''
+        description: Values for keys that a proxy host does not set.
+      proxy_server_real_ip_from:
+        type: list
+        elements: str
+        default: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+        description: Networks whose clients can set X-Real-IP.

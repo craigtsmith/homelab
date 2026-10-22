@@ -1,0 +1,181 @@
+---
+# Not validated here: proxmox_guests_token, proxmox_guests_cloudinit_passwd and
+# proxmox_guests_snippet_ceph_key (1Password lookups), and the derived API values
+# (proxmox_guests_manager, *_api_host, *_api_url, *_auth_header).
+argument_specs:
+  main:
+    short_description: Drift report and create-only build of the Proxmox guests
+    options:
+      proxmox_guests:
+        type: list
+        elements: dict
+        required: true
+        description: Guest definitions (group_vars/all/guests.yml). Existing guests are never changed.
+        options:
+          vmid:
+            type: int
+            required: true
+            description: VMID.
+          name:
+            type: str
+            required: true
+            description: Guest name.
+          node:
+            type: str
+            required: true
+            description: Node of the guest.
+          type:
+            type: str
+            required: true
+            choices: [qemu, lxc]
+            description: VM or LXC.
+          build:
+            type: str
+            required: true
+            choices: [clone, template, lxc, manual]
+            description: How a missing guest is built.
+          clone_from:
+            type: int
+            description: Template VMID for build clone. Default proxmox_guests_templates[node].
+          image:
+            type: str
+            description: Cloud image (key of proxmox_guests_images) for build template.
+          template:
+            type: bool
+            description: The guest is a template.
+          ha:
+            type: dict
+            description: HA resource (proxmox_cluster_config). {node} adds a node-affinity rule, {state} only the resource.
+          config:
+            type: dict
+            required: true
+            description: Proxmox config keys, compared with the live guest.
+      proxmox_guests_templates:
+        type: dict
+        required: true
+        description: Cloud-init template VMID by node, for test VMs and for clones without clone_from.
+      proxmox_guests_lxc_template: &lxc_template
+        type: str
+        required: true
+        description: LXC template volume for build lxc and test LXCs.
+      proxmox_guests_test_range: &test_range
+        type: list
+        elements: int
+        required: true
+        description: First and last VMID for throwaway guests. destroy.yml refuses all other VMIDs.
+      proxmox_guests_fail_on_drift:
+        type: bool
+        default: false
+        description: Fail the play when the drift report finds differences.
+      proxmox_guests_volatile_keys:
+        type: list
+        elements: str
+        default:
+          - digest
+          - smbios1
+          - vmgenid
+          - meta
+          - parent
+          - name
+          - hostname
+          - template
+        description: Config keys that the drift report and promote-guest skip.
+      proxmox_guests_snippet_dir:
+        type: str
+        default: /mnt/pve/ceph_fs/snippets
+        description: Directory of the cloud-init user snippets on the shared storage.
+      proxmox_guests_snippets:
+        type: list
+        elements: str
+        default: [user-noble.yml]
+        description: Snippets rendered from templates/.
+      proxmox_guests_images:
+        type: dict
+        default:
+          noble:
+            url: https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
+            checksum: sha256:https://cloud-images.ubuntu.com/noble/current/SHA256SUMS
+        description: Cloud images by Ubuntu release ({url, checksum}).
+      proxmox_guests_image_dir:
+        type: str
+        default: /root
+        description: Download directory of the cloud images on the manager node.
+  list:
+    short_description: List the cluster guests
+    options: {}
+  clone:
+    short_description: Full clone of a template, then config applied
+    options:
+      guest: &guest
+        type: dict
+        required: true
+        description: The guest to build.
+        options:
+          vmid:
+            type: int
+            required: true
+            description: VMID.
+          name:
+            type: str
+            required: true
+            description: Guest name.
+          node:
+            type: str
+            required: true
+            description: Node of the guest.
+          clone_from:
+            type: int
+            description: Template VMID.
+          ostemplate:
+            type: str
+            description: LXC template volume. Default proxmox_guests_lxc_template.
+          start:
+            type: bool
+            description: Start the guest after the build.
+          config:
+            type: dict
+            required: true
+            description: Proxmox config keys.
+  lxc:
+    short_description: Create a Debian LXC with root's SSH key
+    options:
+      guest: *guest
+      proxmox_guests_lxc_template: *lxc_template
+  lxc_ip:
+    short_description: Wait for an LXC address
+    options:
+      proxmox_guests_lxc_node:
+        type: str
+        required: true
+        description: Node of the LXC.
+      proxmox_guests_lxc_vmid:
+        type: int
+        required: true
+        description: VMID of the LXC.
+  agent_ip:
+    short_description: Wait for a VM address through the guest agent
+    options:
+      proxmox_guests_agent_node:
+        type: str
+        required: true
+        description: Node of the VM.
+      proxmox_guests_agent_vmid:
+        type: int
+        required: true
+        description: VMID of the VM.
+  destroy:
+    short_description: Destroy a throwaway guest in the test range
+    options:
+      proxmox_guests_destroy_node:
+        type: str
+        required: true
+        description: Node of the guest.
+      proxmox_guests_destroy_vmid:
+        type: int
+        required: true
+        description: VMID of the guest. Must be in proxmox_guests_test_range.
+      proxmox_guests_destroy_type:
+        type: str
+        choices: [qemu, lxc]
+        description: VM or LXC. Default qemu.
+      proxmox_guests_test_range: *test_range

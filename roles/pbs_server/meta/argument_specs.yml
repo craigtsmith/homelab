@@ -1,0 +1,99 @@
+---
+# pbs_server_root_email is a 1Password lookup and is not validated here.
+argument_specs:
+  main:
+    short_description: Proxmox Backup Server VM
+    options:
+      pbs_server_apt_files:
+        type: list
+        elements: dict
+        default:
+          - {src: apt/sources.list, dest: /etc/apt/sources.list}
+          - {src: apt/debian.sources, dest: /etc/apt/sources.list.d/debian.sources}
+          - {src: apt/proxmox.sources, dest: /etc/apt/sources.list.d/proxmox.sources}
+          - src: apt/pbs-enterprise.sources
+            dest: /etc/apt/sources.list.d/pbs-enterprise.sources
+          - {src: apt/pbs-test.sources, dest: /etc/apt/sources.list.d/pbs-test.sources}
+          - {src: apt/no-nag-script, dest: /etc/apt/apt.conf.d/no-nag-script}
+          - {src: apt/proxmox-zfs.pref, dest: /etc/apt/preferences.d/proxmox-zfs}
+        description: Apt sources and hooks copied from files/.
+        options:
+          src:
+            type: str
+            required: true
+            description: File under files/.
+          dest:
+            type: str
+            required: true
+            description: Path on the host.
+      pbs_server_config_files:
+        type: list
+        elements: str
+        default: [datastore.cfg, prune.cfg, verification.cfg]
+        description: Files in /etc/proxmox-backup rendered from templates (datastore, prune and verify jobs).
+      pbs_server_mounts:
+        type: list
+        elements: dict
+        default:
+          - {src: 192.168.1.50:/volume2/pbs-backup, path: /mnt/pbs-nas}
+          - {src: 192.168.1.50:/volume2/lab-backup, path: /mnt/lab-backup}
+        description: NFS mounts from the NAS.
+        options:
+          src:
+            type: str
+            required: true
+            description: NFS source (host:/path).
+          path:
+            type: str
+            required: true
+            description: Mount point.
+      pbs_server_mount_opts:
+        type: str
+        default: rw,sync,hard
+        description: Options for every entry in pbs_server_mounts.
+      pbs_server_namespaces:
+        type: list
+        elements: dict
+        default:
+          - {store: pbs-nas, ns: cephfs}
+        description: Datastore namespaces, created when missing.
+        options:
+          store:
+            type: str
+            required: true
+            description: Datastore.
+          ns:
+            type: str
+            required: true
+            description: Namespace.
+      pbs_server_tokens:
+        type: list
+        elements: dict
+        default:
+          - user: cephfs-backup@pbs
+            name: util1
+            store: pbs-nas
+            ns: cephfs
+            item: pbs-cephfs-backup
+        description: API tokens for client backups, each limited to one namespace. A token without a secret in token.shadow is generated again.
+        options:
+          user:
+            type: str
+            required: true
+            description: PBS user (user@pbs).
+          name:
+            type: str
+            required: true
+            description: Token name.
+          store:
+            type: str
+            required: true
+            description: Datastore.
+          ns:
+            type: str
+            required: true
+            description: Namespace the token can back up into.
+          item:
+            type: str
+            required: true
+            description: 1Password item that receives a new secret (field credential).

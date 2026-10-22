@@ -1,0 +1,17 @@
+---
+# unattended_upgrades_origins is derived from facts (ansible_distribution) and is
+# not validated here.
+argument_specs:
+  main:
+    short_description: Daily security updates without reboots
+    options:
+      unattended_upgrades_security_origins:
+        type: dict
+        default:
+          Debian:
+            - origin=Debian,codename=${distro_codename}-security,label=Debian-Security
+          Ubuntu:
+            - origin=Ubuntu,archive=${distro_codename}-security,label=Ubuntu
+            - origin=UbuntuESMApps,archive=${distro_codename}-apps-security
+            - origin=UbuntuESM,archive=${distro_codename}-infra-security
+        description: Allowed-Origins lines by distribution (ansible_distribution), security archives only.
