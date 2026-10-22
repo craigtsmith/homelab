@@ -62,8 +62,6 @@ proxmox_guests:
       serial0: "socket"
       sockets: "1"
       vga: "serial0"
-  # docker2 on 24.04 since 2026-10-15. Replaces 102 (docker2-old, stopped, outside the
-  # repo) until 102 is destroyed.
   - vmid: 113
     name: docker2
     node: pve2
@@ -92,8 +90,6 @@ proxmox_guests:
       serial0: "socket"
       sockets: "1"
       vga: "serial0"
-  # docker3 on 24.04 since 2026-10-15. Replaces 103 (docker3-old, stopped, outside the
-  # repo) until 103 is destroyed.
   - vmid: 114
     name: docker3
     node: pve3
@@ -147,8 +143,7 @@ proxmox_guests:
       serial0: "socket"
       sockets: "1"
       vga: "serial0"
-  # db1 on 24.04 since 2026-10-16. Replaces 108 (db1-old, stopped, outside the repo)
-  # until 108 is destroyed. On pve2: the most even memory split across the nodes.
+  # db1 is on pve2: the most even memory split across the nodes.
   - vmid: 116
     name: db1
     node: pve2
@@ -176,8 +171,7 @@ proxmox_guests:
       serial0: "socket"
       sockets: "1"
       vga: "serial0"
-  # dns1: AdGuard Home on .53 since 2026-10-16 16:11, with ct100's MAC. Replaces ct100
-  # (adguard, stopped, onboot 0, not in HA, outside the repo) until ct100 is destroyed.
+  # dns1: AdGuard Home on .53, with the MAC of the old adguard LXC (ct100).
   - vmid: 118
     name: dns1
     node: pve1
@@ -196,7 +190,7 @@ proxmox_guests:
       swap: "512"
       tags: "ansible"
       unprivileged: "1"
-  # dns2: second AdGuard Home on .54 (8a, 2026-10-20), same config as dns1. Kept on
+  # dns2: second AdGuard Home on .54, same config as dns1. Kept on
   # another node than dns1 by the HA rule dns-apart.
   - vmid: 119
     name: dns2
@@ -216,9 +210,8 @@ proxmox_guests:
       swap: "512"
       tags: "ansible"
       unprivileged: "1"
-  # proxy1: nginx reverse proxy, serves *.<domain> since 2026-10-16. Replaces ct104
-  # (nginxproxymanager, stopped, onboot 0, not in HA, outside the repo) until it is
-  # destroyed. On pve3, the node with the least committed memory.
+  # proxy1: nginx reverse proxy for *.<domain>. On pve3, the node with the least
+  # committed memory.
   - vmid: 117
     name: proxy1
     node: pve3
@@ -237,8 +230,6 @@ proxmox_guests:
       swap: "512"
       tags: "ansible"
       unprivileged: "1"
-  # util1 on 24.04, rebuilt 2026-10-14. Replaced 109,
-  # which is kept stopped (util1-old) until it is destroyed.
   - vmid: 111
     name: util1
     node: pve3
