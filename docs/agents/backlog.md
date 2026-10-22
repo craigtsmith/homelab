@@ -53,6 +53,14 @@ This file holds open work only. At each session handover, remove the ticked item
       "Copies of the state" and "Rollback" from `docs/appbox.md`.
 - [ ] Prowlarr has a download client "Transmission (Seedbox)" on the old Appbox account
       host. No Transmission runs on appbox1. Remove the client.
+- [ ] Apps on appbox1 reach the other apps on appbox1 through proxy1 (`extra_hosts`). When
+      the lab is off, these connections fail. Point them at the container names instead:
+      - Prowlarr download clients "SABnzbd" (`nzb`) and "Deluge (seedbox)" (`deluge`).
+      - aurral: `prowlarr`, `nzb` and `slskd` (in `aurral.db`).
+      - Then remove `prowlarr`, `nzb`, `deluge` and `slskd` from `extra_hosts` in
+        `stacks/appbox1/media-remote.yml.j2`. Keep the swarm apps (sonarr, radarr, lidarr,
+        navidrome).
+      - Prowlarr's `prowlarrUrl` stays on `prowlarr.<domain>`. The swarm arr apps use it.
 - [ ] Replace Resilio (appbox1 container to the swarm `sync`) with a one-way copy from
       appbox1 to the NAS. First find out how the import and the deletions must work.
       - Resilio stays for now. It continues while the NAS is off (the move), and it seeds
