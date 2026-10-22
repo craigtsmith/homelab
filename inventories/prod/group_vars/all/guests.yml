@@ -4,13 +4,9 @@
 # against the live guest by the drift report (playbooks/proxmox_guests.yml).
 # Disk and cloud-init drive keys hold the live value; on create they are
 # rebuilt from the template clone (see roles/proxmox_guests).
-# Per-node cloud-init template used when a `build: clone` VM is missing
+# Per-node 24.04 cloud-init template, cloned for test VMs and for a `build: clone`
+# guest that sets no `clone_from`
 proxmox_guests_templates:
-  pve1: 9010
-  pve2: 9020
-  pve3: 9030
-# 24.04 templates, used for rebuilds and test VMs
-proxmox_guests_templates_noble:
   pve1: 9110
   pve2: 9120
   pve3: 9130

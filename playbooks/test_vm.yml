@@ -52,7 +52,7 @@
           vmid: "{{ test_vmid | int }}"
           name: test-{{ test_vmid }}
           node: "{{ test_node }}"
-          clone_from: "{{ proxmox_guests_templates_noble[test_node] }}"
+          clone_from: "{{ proxmox_guests_templates[test_node] }}"
           start: true
           config: "{{ test_vm_config | combine(test_config | default({})) }}"
 
