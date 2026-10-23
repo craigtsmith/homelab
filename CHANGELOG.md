@@ -23,6 +23,13 @@ separately.
 - **After phase 3 (2026-10-20/21):** app upgrades, dns2, appbox1, the runbook for the house
   move and the preparation for a public repo.
 
+## 2026-10-23
+
+- The lab shut down for the house move (`docs/move.md`). sabnzbd, slskd and aurral stopped
+  on appbox1 at 11:25. All 10 HA resources stopped by 11:37, `noout` set, pve3, pve2 and
+  pve1 off by 11:48, then the NAS. The HA watchdog reset pve1 when it lost quorum, before
+  its clean shutdown.
+
 ## 2026-10-22
 
 - The repo was squashed into one initial commit and made public. Description and topics set.

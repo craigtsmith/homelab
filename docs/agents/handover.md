@@ -1,6 +1,6 @@
 # Handover
 
-State on 2026-10-22. Read `AGENTS.md` first. Then read this file,
+State on 2026-10-23. Read `AGENTS.md` first. Then read this file,
 `docs/agents/learnings.md` and `docs/agents/backlog.md` (open work only).
 
 ## Where things are
@@ -9,7 +9,8 @@ State on 2026-10-22. Read `AGENTS.md` first. Then read this file,
   0-10 and the old guest cleanup (9e) are done.
 - Ansible builds every guest. `playbooks/patch.yml` patched every host on 2026-10-16/17.
   Monthly runs use ride mode.
-- Ceph runs Tentacle 20.2.4 with cephx `aes256k` only, and is HEALTH_OK. The rebuild
+- The lab is off for the house move since 2026-10-23 (below). Ceph runs Tentacle 20.2.4
+  with cephx `aes256k` only. It was HEALTH_OK at shutdown, with `noout` set. The rebuild
   runbook is `docs/rebuild.md`, and it installs Tentacle. The roles do not support focal.
 - The repo is public on GitHub (`craigtsmith/homelab`) since 2026-10-22, squashed into one
   initial commit. Only `main` is on GitHub. The local branches `fix-setup` and `pre-squash`
@@ -140,37 +141,53 @@ State on 2026-10-22. Read `AGENTS.md` first. Then read this file,
   included (`agent: 1,freeze-fs=0` on pbs).
 - Network KVMs for pve1-3 are at 192.168.90.10, .20, .30 (LAN path, web UI on port 80).
 
-## Next session: the shutdown for the move
+## The lab is off (shutdown on 2026-10-23)
 
-craig moves house on 2026-10-22. The next session shuts the lab down. The procedure is
-`docs/move.md`, "Shut down". craig ticks it on the reMarkable checklist
-`/homelab/move-shutdown-2026-10-22`.
+The lab shut down for the move with `docs/move.md`, "Shut down". agent-smith ran steps 1-7
+with craig's approval per step. craig did step 8 and packed the Ceph switch.
 
-1. Run the read-only pre-checks: `ceph -s` (HEALTH_OK), `ha-manager status`, the swarm
-   services, and the last nightly vzdump and CephFS backup.
-2. With craig's approval, stop sabnzbd, slskd and aurral on appbox1. They write to the NAS
-   over a `hard` NFS mount and hang when the NAS is off.
-3. craig does steps 2-8 on pve1 and the NAS (HA stops, `noout`, node power-off, NAS
-   shutdown). Every step stops a running service, so each one needs craig's go-ahead if the
-   agent runs it.
-4. Pull the marks: `pilcrow pull /homelab/move-shutdown-2026-10-22`. Record in this file
-   what was done and when, and what was not done.
+- Pre-checks at 11:22: HEALTH_OK, 10 HA resources `started`, nightly vzdump OK on pve1-3,
+  `cephfs-snapshot` (pve1-3) and `cephfs-backup` (util1, 03:31) succeeded, 18 swarm services
+  at 1/1 and the agent at 3/3, `media-remote` 10 containers up.
+- 11:25: sabnzbd, slskd and aurral stopped on appbox1 (exit 0). Deluge, Resilio, prowlarr,
+  postgres, byparr, dispatcharr and the Portainer agent run.
+- 11:34: step 2 done (vm:114, 113, 115, 111, 116, ct:117, vm:112 `stopped`). When tailscale1
+  stopped, the Mac lost the lab IPs. craig turned off "Use Tailscale subnets", and the LAN
+  route worked.
+- 11:37: step 3 done (ct:119, ct:118, vm:900). Step 4: all 10 HA resources `stopped`, no
+  guest runs. Step 5: HEALTH_OK, 97 PGs active+clean. Step 6: `noout` set.
+- Step 7: pve3 off at 11:39, pve2 off at 11:41. pve1 lost quorum, and its HA CRM watchdog
+  reset it at about 11:42 (`last -x` marks the old boot `crash`). It came up without quorum,
+  with the watchdog `standby`, and started no guest. A clean `shutdown -h now` put it off
+  at 11:48.
+- Step 8: craig shut down the NAS (no ping at 12:03).
+- reMarkable `/homelab/move-shutdown-2026-10-22` (`offmark read`): rows 1-9 bracketed with
+  "assume you did this?" (yes, agent-smith ran them). Rows 10 (NAS) and 11 (pack the Ceph
+  switch) marked pass. Row 12 (new network) is open.
+- The HA resources stay `stopped` at power-on until `docs/move.md` steps 8-9 start them.
+- The reMarkable CLI is now `offmark` (`offmark read /homelab/<name>`), not `pilcrow`.
 
-appbox1 stays up in Amsterdam (Deluge, Resilio, prowlarr, byparr and dispatcharr continue to
-run). While the lab is off, its apps cannot reach `*.<domain>` (proxy1 is off), so Prowlarr
-cannot reach Deluge (backlog). The arr apps are off too, so this has no effect.
+## Next session: power-on at the new place
 
-After the move:
-
-1. Pull craig's marks from the checklist: `pilcrow pull /homelab/move-shutdown-2026-10-22`.
+1. Pull craig's marks: `offmark read /homelab/move-shutdown-2026-10-22`.
 2. Ask craig what the new network is.
 3. Plan the new addresses, if necessary, against the dependency table in `docs/move.md`,
    before power-on.
-4. After power-on, start the NAS writers on appbox1.
-5. Run the read-only checks and `scripts/drift` (23 runs, with `portainer_stacks.yml`).
+4. Power on per `docs/move.md`. In step 5, also check `ceph crash ls` for pve1's OSD
+   (watchdog reset). The controller reaches the lab over the LAN until tailscale1 runs.
+   Then craig turns "Use Tailscale subnets" on again.
+5. After power-on, start sabnzbd, slskd and aurral on appbox1 (approval). `ssh appbox1`
+   does not work, use `uv run ansible appbox1`.
+6. Run the read-only checks (Ceph, nightly vzdump, CephFS snapshot and backup timers, swarm
+   services, `media-remote`) and `scripts/drift` (23 runs, with `portainer_stacks.yml`).
+7. Before the next full shutdown, fix `docs/move.md` step 7 (backlog, the watchdog reset).
+
+appbox1 stays up in Amsterdam. While the lab is off, its apps cannot reach `*.<domain>`
+(proxy1 is off), so Prowlarr cannot reach Deluge (backlog). The arr apps are off too, so this
+has no effect.
 
 Other open work: the appbox1 items, the "Public repo" leftovers, 3b, 7c, 8b and the rebuild
-gaps. Ombi waits for a stable 4.60. The reMarkable CLI is `pilcrow`.
+gaps. Ombi waits for a stable 4.60.
 
 ## Dates and things craig owes
 
@@ -190,15 +207,12 @@ We're continuing the homelab Ansible work in ~/Projects/homelab.
 Before doing anything, read AGENTS.md, docs/agents/handover.md, docs/agents/learnings.md and
 docs/agents/backlog.md, then summarise back to me in a few lines where we are.
 
-The house move: help me shut down the lab with docs/move.md, "Shut down". Run the read-only
-pre-checks first, then stop sabnzbd, slskd and aurral on appbox1 when I approve. I tick the
-reMarkable checklist /homelab/move-shutdown-2026-10-22; pull my marks with pilcrow at the end
-and record the result in the handover.
-
-If the lab is already moved: pull my marks, ask me what the new network looks like and plan
-the power-on against docs/move.md. After power-on run the read-only checks (Ceph health,
-nightly vzdump, CephFS snapshot and backup timers, swarm services, appbox1's media-remote
-stack) and scripts/drift.
+The lab is off after the house move. Pull my marks with
+`offmark read /homelab/move-shutdown-2026-10-22`, ask me what the new network looks like and
+plan the power-on against docs/move.md. After power-on, start sabnzbd, slskd and aurral on
+appbox1 when I approve, then run the read-only checks (Ceph health and crashes, nightly
+vzdump, CephFS snapshot and backup timers, swarm services, appbox1's media-remote stack) and
+scripts/drift.
 
 Rules: nothing that affects running services without my explicit approval for that
 specific action; --check first, one host at a time; never print secrets; tick
