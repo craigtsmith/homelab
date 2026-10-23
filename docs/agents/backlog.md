@@ -38,6 +38,8 @@ This file holds open work only. At each session handover, remove the ticked item
       - [x] Pre-checks 2026-10-23 11:22: HEALTH_OK, 10 HA resources started, vzdump OK on
             pve1-3, `cephfs-snapshot` and `cephfs-backup` succeeded, 19 swarm services up.
       - [x] Step 2 (HA stop of the apps and tailscale1): done 11:34, 7 guests stopped.
+      - [x] Steps 3-6: DNS and PBS stopped 11:37, no guest runs, HEALTH_OK, `noout` set
+            11:37.
 - [ ] At the new place, before power-on: decide the network.
       - The same 192.168.100.0/24 with gateway .1 and a route to the NAS at 192.168.1.50
         needs no repo change.
