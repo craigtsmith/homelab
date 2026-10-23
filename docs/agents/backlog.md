@@ -30,7 +30,8 @@ This file holds open work only. At each session handover, remove the ticked item
 
 ## Move (2026-10-22)
 
-- [ ] Stop sabnzbd, slskd and aurral on appbox1 (approval), before the NAS goes off.
+- [x] Stop sabnzbd, slskd and aurral on appbox1 (approval), before the NAS goes off.
+      - [x] Stopped 2026-10-23 11:25 CEST (exit 0). The other 7 containers run.
 - [ ] craig shuts down the cluster and the NAS (`docs/move.md`, reMarkable checklist
       `/homelab/move-shutdown-2026-10-22`).
 - [ ] At the new place, before power-on: decide the network.
