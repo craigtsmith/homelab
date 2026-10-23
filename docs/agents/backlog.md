@@ -40,6 +40,17 @@ This file holds open work only. At each session handover, remove the ticked item
       - [x] Step 2 (HA stop of the apps and tailscale1): done 11:34, 7 guests stopped.
       - [x] Steps 3-6: DNS and PBS stopped 11:37, no guest runs, HEALTH_OK, `noout` set
             11:37.
+      - [x] Step 7: pve3 off 11:39, pve2 off 11:41. pve1 lost quorum and its HA watchdog
+            reset it at about 11:42 (boot marked `crash`, no guest ran). It came up without
+            quorum, watchdog `standby`, no guest started. Clean shutdown, off 11:48.
+      - [ ] Step 8: craig shuts down the NAS from DSM.
+- [ ] `docs/move.md` step 7 lets the last node lose quorum while its HA CRM watchdog is armed,
+      and the watchdog resets it. Find out the correct order before the next full shutdown
+      (Proxmox admin guide, "Shutdown Proxmox VE + Ceph HCI Cluster", and the HA fencing
+      chapter), then fix the runbook. Not known yet: whether a simultaneous shutdown of the
+      last two nodes, or node maintenance mode first, prevents it.
+- [ ] At power-on: pve1's OSD stopped without a clean shutdown. Check `ceph -s` and
+      `ceph crash ls` for it, in addition to the checks in `docs/move.md`.
 - [ ] At the new place, before power-on: decide the network.
       - The same 192.168.100.0/24 with gateway .1 and a route to the NAS at 192.168.1.50
         needs no repo change.

@@ -83,7 +83,9 @@ reason. Add new items to the correct section. Do not put learnings in other file
 - A single quote inside a single-quoted `ssh '...'` command ends the quote (`c['id']`
   became `c[id]`). Copy scripts with `scp` and run them.
 - The controller reaches 192.168.100.0/24 through the Tailscale subnet route. When Tailscale
-  is down, it uses the LAN (router 192.168.1.1).
+  is down, it uses the LAN (router 192.168.1.1). When only tailscale1 stops, the route stays
+  on Tailscale and the lab IPs time out. Run `Tailscale set --accept-routes=false` (craig's
+  "Use Tailscale subnets"), and turn it on again after tailscale1 is back.
 - A change that moves or restarts the subnet router can stop your session. Run such
   commands on a pve node with `systemd-run`.
 - The controller resolves names through MagicDNS, which forwards to .53. Its Tailscale CLI is
@@ -103,6 +105,11 @@ reason. Add new items to the correct section. Do not put learnings in other file
   act outside the guest (certbot renewals through Cloudflare) with `pct mount`.
 - HA node maintenance in PVE 9.2 sends guests back to their old node when maintenance ends.
   This also occurs without a node-affinity rule (pbs).
+- If you power off the nodes one at a time, the last node loses quorum while its HA CRM
+  watchdog is armed, and the watchdog resets it. This also occurs when every HA resource is
+  `stopped`. On 2026-10-23, pve1 became the CRM master when pve3 went off, and reset about
+  60 s after pve2 went off. After the reset, its watchdog was `standby`, and a clean
+  shutdown worked.
 - `ha-manager migrate` obeys node-affinity rules. To move a guest away and back, set it to
   `ignored`, run `qm migrate --online` two times, then set it to `started`.
 - `ha-manager status` prints `(pve3, started)`. Remove the parentheses before you compare.
