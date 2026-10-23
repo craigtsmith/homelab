@@ -33,7 +33,11 @@ This file holds open work only. At each session handover, remove the ticked item
 - [x] Stop sabnzbd, slskd and aurral on appbox1 (approval), before the NAS goes off.
       - [x] Stopped 2026-10-23 11:25 CEST (exit 0). The other 7 containers run.
 - [ ] craig shuts down the cluster and the NAS (`docs/move.md`, reMarkable checklist
-      `/homelab/move-shutdown-2026-10-22`).
+      `/homelab/move-shutdown-2026-10-22`). agent-smith runs steps 2-7 with craig's approval
+      per step.
+      - [x] Pre-checks 2026-10-23 11:22: HEALTH_OK, 10 HA resources started, vzdump OK on
+            pve1-3, `cephfs-snapshot` and `cephfs-backup` succeeded, 19 swarm services up.
+      - [x] Step 2 (HA stop of the apps and tailscale1): done 11:34, 7 guests stopped.
 - [ ] At the new place, before power-on: decide the network.
       - The same 192.168.100.0/24 with gateway .1 and a route to the NAS at 192.168.1.50
         needs no repo change.
