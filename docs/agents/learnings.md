@@ -88,8 +88,12 @@ reason. Add new items to the correct section. Do not put learnings in other file
   commands on a pve node with `systemd-run`.
 - The controller resolves names through MagicDNS, which forwards to .53. Its Tailscale CLI is
   `/Applications/Tailscale.app/Contents/MacOS/Tailscale` (not on `PATH`).
-- `pilcrow pull` needs the device path (`/homelab/<name>`) for a document in a folder. A bare
-  name looks in the default folder.
+- The reMarkable CLI is `offmark` (it was `pilcrow` before). `offmark read` needs the device
+  path (`/homelab/<name>`) for a document in a folder. A bare name looks in the default
+  folder.
+- `ssh appbox1` has no `~/.ssh/config` alias. MagicDNS resolves the name, and the host key
+  is not known ("Host key verification failed"). Use `uv run ansible appbox1`, which
+  connects with the host and port from `private.yml`.
 
 ## Proxmox
 
