@@ -34,11 +34,31 @@ The lab is off since 2026-10-23 12:00 (CHANGELOG). `noout` is set. sabnzbd, slsk
 are stopped on appbox1.
 
 - [ ] At the new place, before power-on: decide the network.
-      - The same 192.168.100.0/24 with gateway .1 and a route to the NAS at 192.168.1.50
-        needs no repo change.
-      - Each other layout needs a plan for new addresses.
+      - [x] Decided (craig, 2026-11-20): new UniFi gear with the old subnets and VLAN IDs.
+            Spec in `inventories/prod/group_vars/all/unifi.yml`, hardware and order in
+            `docs/network.md`. No host changes.
       - Then power on per `docs/move.md`. Do 8a and the KVM addresses again for the new
         network.
+
+## New UniFi network (`docs/network.md`)
+
+- [x] Spec: networks, Wi-Fi, fixed IPs and switch ports in `group_vars/all/unifi.yml`.
+- [x] 1Password `unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest` (generated,
+      24 letters and digits).
+- [ ] craig exchanges the UXG-Fiber for a UCG-Fiber (the UXG has no Network app).
+- [ ] craig picks the SSID names. Set them in `private.yml` (now `TBD-*`).
+- [ ] Bench setup of the UCG: local admin and API key in 1Password. Then adopt the Flex,
+      the Ceph switch (factory reset first) and the APs.
+- [ ] Role `unifi_network` (localhost, `uri`): networks and Wi-Fi through the Integration
+      API, fixed IPs and port overrides through the legacy API. Check whether the legacy API
+      accepts the API key. Derive the Lab guest fixed IPs from `guests.yml`. Add it to
+      `scripts/drift`.
+- [ ] MACs of the NAS, the KVMs and Home Assistant (client list after first connect).
+- [ ] The Ceph switch model and its port numbers.
+- [ ] The ISP, and the WAN VLAN or PPPoE.
+- [ ] Check that the UCG answers DNS on 192.168.100.1 (pve1-3 and pbs use it first).
+- [ ] Firewall zones: Guest is isolated. Decide whether IoT may reach Lab (DNS on .53/.54
+      must work).
 - [ ] At power-on: pve1's OSD stopped without a clean shutdown (watchdog reset). Check
       `ceph -s` and `ceph crash ls` for it, in addition to the checks in `docs/move.md`.
 - [ ] After power-on: craig turns "Use Tailscale subnets" on again on the Mac, when

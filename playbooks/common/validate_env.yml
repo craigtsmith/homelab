@@ -38,6 +38,9 @@
           - appbox1_tailnet_ip is defined
           - nas_tailnet_ip is defined
           - dns_personal_device_ids is defined
+          - unifi_network_ssid_home is defined
+          - unifi_network_ssid_iot is defined
+          - unifi_network_ssid_guest is defined
         fail_msg: >-
           A private inventory value is missing. Copy
           inventories/prod/group_vars/all/private.yml.example to private.yml in the same

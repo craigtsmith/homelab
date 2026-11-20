@@ -10,3 +10,7 @@ nas_tailnet_ip: 100.64.0.20
 # AdGuard client "Personal Devices" (dns_servers.yml): IPs, CIDRs or MACs
 dns_personal_device_ids:
   - 192.168.1.10
+# Wi-Fi SSID names (unifi.yml)
+unifi_network_ssid_home: example
+unifi_network_ssid_iot: example-iot
+unifi_network_ssid_guest: example-guest

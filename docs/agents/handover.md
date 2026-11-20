@@ -167,6 +167,19 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 - The HA resources stay `stopped` at power-on until `docs/move.md` steps 8-9 start them.
 - The reMarkable CLI is now `offmark` (`offmark read /homelab/<name>`), not `pilcrow`.
 
+## New UniFi network (2026-11-20)
+
+- The lab is still off. The move into the new house is about 2026-12-20.
+- New gear: UCG-Fiber (exchange for the UXG-Fiber that came by mistake), USW-Flex-2.5G-8,
+  the old Ceph switch (UniFi, adopted again), U7 Pro XG Wall (wired) and two U7 Pro Wall
+  (mesh). The spec is `group_vars/all/unifi.yml`, the rest is `docs/network.md`.
+- Networks: Home 1 (192.168.1.0/24), IoT 10, Guest 30, KVM 90, Lab 100, Ceph 5 (VLAN only).
+  The subnets of the old place stay, so `docs/move.md` power-on needs no address plan.
+- The SSID names in `private.yml` are `TBD-*` until craig picks them.
+- Open: backlog, "New UniFi network".
+- If power-on is after 2026-12-15, certbot on proxy1 renews late. The certificates expire
+  on 2027-01-14.
+
 ## Next session: power-on at the new place
 
 1. Pull craig's marks: `offmark read /homelab/move-shutdown-2026-10-22`.
