@@ -77,10 +77,10 @@ unifi_network_ports:
     - {port: 6, name: kvm-pve3, native: KVM}
     - {port: 7, name: nas, native: Home}
     - {port: 8, name: ceph-switch, native: Home}
-  # Port numbers depend on the model (not known yet). Ceph traffic stays on this
-  # switch: the uplink does not carry VLAN 5.
+  # USW-Flex-2.5G-5. Port 1 (PoE in) is the uplink. Ceph traffic stays on this
+  # switch: the uplink does not carry VLAN 5. Port 5 is spare.
   ceph-switch:
-    - {port: 1, name: pve1-enp2s0, native: Ceph}
-    - {port: 2, name: pve2-enp2s0, native: Ceph}
-    - {port: 3, name: pve3-enp2s0, native: Ceph}
-    - {port: ~, name: flex, native: Home}
+    - {port: 1, name: flex, native: Home}
+    - {port: 2, name: pve1-enp2s0, native: Ceph}
+    - {port: 3, name: pve2-enp2s0, native: Ceph}
+    - {port: 4, name: pve3-enp2s0, native: Ceph}

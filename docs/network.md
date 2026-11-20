@@ -11,7 +11,7 @@ the setup order. The subnets are the same as at the old place, so the hosts need
 | --- | --- |
 | UCG-Fiber | Gateway and UniFi Network app. WAN: Openreach ONT on port 1 (2.5 GbE) |
 | USW-Flex-2.5G-8 | Rack switch, uplink on its SFP+ to UCG port 6 (DAC) |
-| Ceph switch (UniFi, model not known) | Ceph network only (`enp2s0` of pve1-3). Uplink to the Flex for management |
+| USW-Flex-2.5G-5 (Ceph switch) | Ceph network only (`enp2s0` of pve1-3 on ports 2-4). Port 1 uplinks to Flex port 8 for management. USB-C power |
 | U7 Pro XG Wall | Wired AP: UCG port 5 (10 GbE) to the LAN in of a 10G PoE injector, PoE out to the AP |
 | U7 Pro Wall (2) | Wireless mesh to the XG Wall, power from injectors |
 
@@ -56,7 +56,6 @@ page, through [eggg.uk/scraps/fttp](https://eggg.uk/scraps/fttp/):
 
 - The SSID names (craig).
 - Whether EE needs VLAN 101 on this line.
-- The Ceph switch model and its port numbers.
 - Whether the UCG answers DNS on 192.168.100.1. pve1-3 and pbs use it as their first
   resolver. Check with `dig @192.168.100.1`.
 - Whether the legacy API (fixed IPs, port overrides) accepts the API key, or needs a local

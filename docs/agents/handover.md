@@ -172,7 +172,7 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 - The lab is still off. craig moves into the new house (UK) in about a month, about
   2026-12-20. The UniFi gear stays at the old place, so new gear is set up on a bench first.
 - Gear: UCG-Fiber (craig exchanges the UXG-Fiber that came by mistake, which has no Network
-  app), USW-Flex-2.5G-8, the old Ceph switch (UniFi, adopted again after a factory reset),
+  app), USW-Flex-2.5G-8, the old Ceph switch (USW-Flex-2.5G-5, adopted again after a factory reset),
   U7 Pro XG Wall (wired, 10G PoE injector) and two U7 Pro Wall (mesh, injectors).
 - The spec is `inventories/prod/group_vars/all/unifi.yml` (networks, Wi-Fi, fixed IPs,
   switch ports). Hardware, WAN and setup order are in `docs/network.md`.
@@ -182,6 +182,7 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
   as DNS. No DHCP domain name.
 - Ports: UCG 1 is the WAN (EE PPPoE, Openreach ONT), UCG 5 (10 GbE) the XG Wall, UCG 6 the
   Flex (DAC). Flex 1-3 pve1-3, 4-6 the KVMs, 7 the NAS, 8 the Ceph switch.
+  Ceph switch 1 uplink, 2-4 `enp2s0` of pve1-3.
 - 1Password: `unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest` (generated). The SSID
   names in `private.yml` are `TBD-*`.
 - The role `unifi_network` does not exist yet. The Integration API writes networks and
@@ -197,8 +198,7 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 ## Next session: UniFi bench setup
 
 1. Pull craig's prep checklist: `offmark read /homelab/unifi-bench-prep`. Put the SSID names
-   in `private.yml`, the MACs in `unifi_network_clients` and the Ceph switch model in
-   `docs/network.md`.
+   in `private.yml`, and the MACs in `unifi_network_clients`.
 2. Check the bench WAN: if craig's current router uses 192.168.1.0/24, it clashes with
    Home. Plan around it before the UCG setup.
 3. craig sets up the UCG with a local admin. Put the login and an API key in 1Password.
@@ -229,8 +229,8 @@ gaps. Ombi waits for a stable 4.60.
 
 ## Dates and things craig owes
 
-- craig: the prep checklist `/homelab/unifi-bench-prep` (UCG exchange, SSID names, Ceph
-  switch model, MACs, bench items).
+- craig: the prep checklist `/homelab/unifi-bench-prep` (UCG exchange, SSID names, MACs,
+  bench items).
 - craig: .54 in the Tailscale admin DNS, and the adguard2 login
   (`/homelab/dns2-checks-2026-10-20`). The new UniFi DHCP gives .54 from the spec.
 - craig: delete the protected old-guest PBS snapshots when they are no longer needed. Create

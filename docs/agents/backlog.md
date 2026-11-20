@@ -43,7 +43,6 @@ checklist on the reMarkable (`/homelab/unifi-bench-prep`).
 
 - [ ] craig exchanges the UXG-Fiber for a UCG-Fiber (the UXG has no Network app).
 - [ ] SSID names (craig, on the prep checklist). Set them in `private.yml` (now `TBD-*`).
-- [ ] The Ceph switch model and its port numbers (prep checklist).
 - [ ] MACs of the NAS, the KVMs and Home Assistant (prep checklist, or the client list).
 - [ ] Bench WAN: if the current router also uses 192.168.1.0/24, the UCG WAN and Home
       clash. Use a different bench LAN on the current router, or a temporary Home subnet.
