@@ -55,7 +55,10 @@ are stopped on appbox1.
       `scripts/drift`.
 - [ ] MACs of the NAS, the KVMs and Home Assistant (client list after first connect).
 - [ ] The Ceph switch model and its port numbers.
-- [ ] The ISP, and the WAN VLAN or PPPoE.
+- [x] WAN: EE full fibre (likely), 1.6 Gbps, PPPoE on UCG port 1. Port 5 to the XG Wall
+      through a 10G PoE injector (`docs/network.md`, "WAN").
+- [ ] At the new house: VLAN 101 or untagged for the PPPoE (EE says 101, one report says
+      untagged).
 - [ ] Check that the UCG answers DNS on 192.168.100.1 (pve1-3 and pbs use it first).
 - [ ] Firewall zones: Guest is isolated. Decide whether IoT may reach Lab (DNS on .53/.54
       must work).

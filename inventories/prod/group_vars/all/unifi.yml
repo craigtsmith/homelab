@@ -64,8 +64,9 @@ unifi_network_clients:
 # Switch ports: native network, and the tagged networks (all, or a list; none if
 # absent). The name is the far end of the cable.
 unifi_network_ports:
+  # WAN (PPPoE) is port 1, set in the UI (docs/network.md, "WAN"). Port 5 is LAN.
   ucg-fiber:
-    - {port: 4, name: ap-u7-pro-xg-wall, native: Home, tagged: [IoT, Guest]}
+    - {port: 5, name: ap-u7-pro-xg-wall, native: Home, tagged: [IoT, Guest]}
     - {port: 6, name: flex, native: Home, tagged: all}
   flex:
     - {port: 1, name: pve1-eno1, native: Lab, tagged: all}

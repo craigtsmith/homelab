@@ -9,10 +9,10 @@ the setup order. The subnets are the same as at the old place, so the hosts need
 
 | Device | Role |
 | --- | --- |
-| UCG-Fiber | Gateway and UniFi Network app. WAN: ISP ONT on port 5 (10 GbE RJ45) |
+| UCG-Fiber | Gateway and UniFi Network app. WAN: Openreach ONT on port 1 (2.5 GbE) |
 | USW-Flex-2.5G-8 | Rack switch, uplink on its SFP+ to UCG port 6 (DAC) |
 | Ceph switch (UniFi, model not known) | Ceph network only (`enp2s0` of pve1-3). Uplink to the Flex for management |
-| U7 Pro XG Wall | Wired AP at the rack (UCG port 4, or its injector) |
+| U7 Pro XG Wall | Wired AP: UCG port 5 (10 GbE) to the LAN in of a 10G PoE injector, PoE out to the AP |
 | U7 Pro Wall (2) | Wireless mesh to the XG Wall, power from injectors |
 
 The UCG-Fiber replaces a UXG-Fiber (ordered by mistake). The UXG has no Network app.
@@ -27,6 +27,18 @@ The UCG-Fiber replaces a UXG-Fiber (ordered by mistake). The UXG has no Network 
 - New SSID names and new passphrases. The passphrases are in 1Password
   (`unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest`).
 - The Ceph switch is adopted. VLAN 5 stays on that switch.
+
+## WAN
+
+The plan is EE full fibre at 1.6 Gbps, so a 2.5 GbE port is enough. Port 5 (10 GbE, the
+default WAN) is set to LAN for the XG Wall. The settings come from EE's third-party router
+page, through [eggg.uk/scraps/fttp](https://eggg.uk/scraps/fttp/):
+
+- Connection PPPoE, username `bthomehub@btbroadband.com`, password `bt`, CHAP, DNS from the
+  ISP. These are EE's shared values, not account secrets.
+- EE says VLAN 101. That author had a UXG-Fiber on an Openreach ONT, and the connection
+  worked only without a VLAN tag. Try 101 first, then untagged.
+- IPv6 off at first.
 
 ## Setup order (bench, before the move)
 
@@ -43,7 +55,7 @@ The UCG-Fiber replaces a UXG-Fiber (ordered by mistake). The UXG has no Network 
 ## Not known yet
 
 - The SSID names (craig).
-- The ISP, and whether the WAN needs a VLAN or PPPoE.
+- Whether EE needs VLAN 101 on this line.
 - The Ceph switch model and its port numbers.
 - Whether the UCG answers DNS on 192.168.100.1. pve1-3 and pbs use it as their first
   resolver. Check with `dig @192.168.100.1`.
