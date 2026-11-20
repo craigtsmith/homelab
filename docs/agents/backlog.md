@@ -33,50 +33,35 @@ This file holds open work only. At each session handover, remove the ticked item
 The lab is off since 2026-10-23 12:00 (CHANGELOG). `noout` is set. sabnzbd, slskd and aurral
 are stopped on appbox1.
 
-- [ ] At the new place, before power-on: decide the network.
-      - [x] Decided (craig, 2026-11-20): new UniFi gear with the old subnets and VLAN IDs.
-            Spec in `inventories/prod/group_vars/all/unifi.yml`, hardware and order in
-            `docs/network.md`. No host changes.
-      - Then power on per `docs/move.md`. Do 8a and the KVM addresses again for the new
-        network.
-
+- [ ] At the new place: power on per `docs/move.md` after the UniFi network runs (the
+      subnets stay, so no address plan). Then do 8a and the KVM checks again.
 ## New UniFi network (`docs/network.md`)
 
-- [x] Spec: networks, Wi-Fi, fixed IPs and switch ports in `group_vars/all/unifi.yml`.
-- [x] 1Password `unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest` (generated,
-      24 letters and digits).
+The spec is `inventories/prod/group_vars/all/unifi.yml`. The Wi-Fi passphrases are in
+1Password (`unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest`). craig has the prep
+checklist on the reMarkable (`/homelab/unifi-bench-prep`).
+
 - [ ] craig exchanges the UXG-Fiber for a UCG-Fiber (the UXG has no Network app).
-- [ ] craig picks the SSID names. Set them in `private.yml` (now `TBD-*`).
+- [ ] SSID names (craig, on the prep checklist). Set them in `private.yml` (now `TBD-*`).
+- [ ] The Ceph switch model and its port numbers (prep checklist).
+- [ ] MACs of the NAS, the KVMs and Home Assistant (prep checklist, or the client list).
+- [ ] Bench WAN: if the current router also uses 192.168.1.0/24, the UCG WAN and Home
+      clash. Use a different bench LAN on the current router, or a temporary Home subnet.
 - [ ] Bench setup of the UCG: local admin and API key in 1Password. Then adopt the Flex,
-      the Ceph switch (factory reset first) and the APs.
+      the Ceph switch (after its factory reset) and the APs.
 - [ ] Role `unifi_network` (localhost, `uri`): networks and Wi-Fi through the Integration
       API, fixed IPs and port overrides through the legacy API. Check whether the legacy API
       accepts the API key. Derive the Lab guest fixed IPs from `guests.yml`. Add it to
       `scripts/drift`.
-- [ ] MACs of the NAS, the KVMs and Home Assistant (client list after first connect).
-- [ ] The Ceph switch model and its port numbers.
-- [x] WAN: EE full fibre (likely), 1.6 Gbps, PPPoE on UCG port 1. Port 5 to the XG Wall
-      through a 10G PoE injector (`docs/network.md`, "WAN").
-- [ ] At the new house: VLAN 101 or untagged for the PPPoE (EE says 101, one report says
-      untagged).
-- [ ] Check that the UCG answers DNS on 192.168.100.1 (pve1-3 and pbs use it first).
-- [x] The house is in the UK: `tz` Europe/London, UK NTP pool, timezone on the nodes and
-      pbs from Ansible, stack TZ from `tz`.
-- [ ] After power-on: apply the timezone and NTP change (drift shows it on every host and
-      in media-server and media-remote). Approval per host and per stack.
-- [x] Removed the AdGuard client "UK Routed" (192.168.200.0/24) from the repo (craig).
-- [ ] After power-on: `dns_servers.yml` on dns1, then dns2 removes it live (approval).
 - [ ] Firewall zones: Guest is isolated. Decide whether IoT may reach Lab (DNS on .53/.54
       must work).
-- [ ] At power-on: pve1's OSD stopped without a clean shutdown (watchdog reset). Check
-      `ceph -s` and `ceph crash ls` for it, in addition to the checks in `docs/move.md`.
-- [ ] After power-on: craig turns "Use Tailscale subnets" on again on the Mac, when
-      tailscale1 runs.
-- [ ] `docs/move.md` step 7 lets the last node lose quorum while its HA CRM watchdog is armed,
-      and the watchdog resets it. Find out the correct order before the next full shutdown
-      (Proxmox admin guide, "Shutdown Proxmox VE + Ceph HCI Cluster", and the HA fencing
-      chapter), then fix the runbook. Not known yet: whether a simultaneous shutdown of the
-      last two nodes, or node maintenance mode first, prevents it.
+- [ ] At the new house: PPPoE on UCG port 1, VLAN 101 or untagged (EE says 101, one report
+      says untagged).
+- [ ] Check that the UCG answers DNS on 192.168.100.1 (pve1-3 and pbs use it first).
+- [ ] After power-on: apply the timezone and NTP change (drift shows it on every host and
+      in media-server and media-remote). Approval per host and per stack.
+- [ ] After power-on: `dns_servers.yml` on dns1, then dns2, removes the "UK Routed" client
+      live (approval).
 
 ## appbox1 (download services in Amsterdam, `docs/appbox.md`)
 

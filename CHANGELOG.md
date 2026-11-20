@@ -23,6 +23,17 @@ separately.
 - **After phase 3 (2026-10-20/21):** app upgrades, dns2, appbox1, the runbook for the house
   move and the preparation for a public repo.
 
+## 2026-11-20
+
+- The network for the new house (UK) was planned: new UniFi gear (UCG-Fiber, Flex 2.5G,
+  the old Ceph switch, three U7 Wall APs) with the subnets and VLAN IDs of the old place.
+  The spec is `group_vars/all/unifi.yml`, the rest is `docs/network.md`. New Wi-Fi
+  passphrases are in 1Password.
+- `tz` is now `Europe/London`, chrony on pve1-3 uses the UK NTP pool, and `proxmox_node`
+  and `pbs_server` set the timezone. The media-server and media-remote stacks use `tz`.
+  Not applied (the lab is off).
+- The AdGuard client "UK Routed" was removed from the repo. Not applied.
+
 ## 2026-10-23
 
 - The lab shut down for the house move (`docs/move.md`). sabnzbd, slskd and aurral stopped

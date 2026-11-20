@@ -1,6 +1,6 @@
 # Handover
 
-State on 2026-10-23. Read `AGENTS.md` first. Then read this file,
+State on 2026-11-20. Read `AGENTS.md` first. Then read this file,
 `docs/agents/learnings.md` and `docs/agents/backlog.md` (open work only).
 
 ## Where things are
@@ -169,36 +169,56 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 
 ## New UniFi network (2026-11-20)
 
-- The lab is still off. The move into the new house is about 2026-12-20.
-- New gear: UCG-Fiber (exchange for the UXG-Fiber that came by mistake), USW-Flex-2.5G-8,
-  the old Ceph switch (UniFi, adopted again), U7 Pro XG Wall (wired) and two U7 Pro Wall
-  (mesh). The spec is `group_vars/all/unifi.yml`, the rest is `docs/network.md`.
-- Networks: Home 1 (192.168.1.0/24), IoT 10, Guest 30, KVM 90, Lab 100, Ceph 5 (VLAN only).
-  The subnets of the old place stay, so `docs/move.md` power-on needs no address plan.
-- The SSID names in `private.yml` are `TBD-*` until craig picks them.
-- Open: backlog, "New UniFi network".
-- The new house is in the UK. `tz` is `Europe/London`, and chrony on pve1-3 uses
+- The lab is still off. craig moves into the new house (UK) in about a month, about
+  2026-12-20. The UniFi gear stays at the old place, so new gear is set up on a bench first.
+- Gear: UCG-Fiber (craig exchanges the UXG-Fiber that came by mistake, which has no Network
+  app), USW-Flex-2.5G-8, the old Ceph switch (UniFi, adopted again after a factory reset),
+  U7 Pro XG Wall (wired, 10G PoE injector) and two U7 Pro Wall (mesh, injectors).
+- The spec is `inventories/prod/group_vars/all/unifi.yml` (networks, Wi-Fi, fixed IPs,
+  switch ports). Hardware, WAN and setup order are in `docs/network.md`.
+- Networks: Home 1 (192.168.1.0/24), IoT 10, Guest 30, KVM 90, Lab 100, Ceph 5 (VLAN only,
+  stays on the Ceph switch). The subnets of the old place stay, so the hosts need no change
+  and `docs/move.md` power-on needs no address plan. Home, IoT and Lab DHCP give .53 and .54
+  as DNS. No DHCP domain name.
+- Ports: UCG 1 is the WAN (EE PPPoE, Openreach ONT), UCG 5 (10 GbE) the XG Wall, UCG 6 the
+  Flex (DAC). Flex 1-3 pve1-3, 4-6 the KVMs, 7 the NAS, 8 the Ceph switch.
+- 1Password: `unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest` (generated). The SSID
+  names in `private.yml` are `TBD-*`.
+- The role `unifi_network` does not exist yet. The Integration API writes networks and
+  Wi-Fi. The legacy API writes fixed IPs and port overrides. The `linuxserver` controller
+  image has no Integration API, so the first test is a check run against the real UCG.
+- The house is in the UK. `tz` is `Europe/London`, and chrony on pve1-3 uses
   `*.uk.pool.ntp.org`. `proxmox_node` and `pbs_server` now set the timezone (it was
   `Europe/Amsterdam`, set by hand). The media-server and media-remote stacks use `{{ tz }}`.
-  The first `scripts/drift` after power-on shows these changes on every host and in both
-  stacks. Apply them with craig's approval (the stacks restart their containers).
-- If power-on is after 2026-12-15, certbot on proxy1 renews late. The certificates expire
-  on 2027-01-14.
+  The first `scripts/drift` after power-on shows these changes. Apply them with craig's
+  approval (the stacks restart their containers).
+- The AdGuard client "UK Routed" is gone from the repo. dns1 and dns2 still have it.
 
-## Next session: power-on at the new place
+## Next session: UniFi bench setup
 
-1. Pull craig's marks: `offmark read /homelab/move-shutdown-2026-10-22`.
-2. Ask craig what the new network is.
-3. Plan the new addresses, if necessary, against the dependency table in `docs/move.md`,
-   before power-on.
-4. Power on per `docs/move.md`. In step 5, also check `ceph crash ls` for pve1's OSD
+1. Pull craig's prep checklist: `offmark read /homelab/unifi-bench-prep`. Put the SSID names
+   in `private.yml`, the MACs in `unifi_network_clients` and the Ceph switch model in
+   `docs/network.md`.
+2. Check the bench WAN: if craig's current router uses 192.168.1.0/24, it clashes with
+   Home. Plan around it before the UCG setup.
+3. craig sets up the UCG with a local admin. Put the login and an API key in 1Password.
+4. Adopt the Flex, the Ceph switch and the APs.
+5. Build `unifi_network` (backlog). Prove each API read first, then `--check --diff`, then a
+   real run with craig's approval. Set the Ceph switch ports before pve1-3 are cabled to it.
+6. Add the role to `scripts/drift`. A check run must show `changed=0`.
+
+## Later: power-on at the new place
+
+1. Cable per `docs/network.md`, and set the WAN (PPPoE, VLAN 101 or untagged).
+2. Power on per `docs/move.md`. In step 5, also check `ceph crash ls` for pve1's OSD
    (watchdog reset). The controller reaches the lab over the LAN until tailscale1 runs.
    Then craig turns "Use Tailscale subnets" on again.
-5. After power-on, start sabnzbd, slskd and aurral on appbox1 (approval). `ssh appbox1`
-   does not work, use `uv run ansible appbox1`.
-6. Run the read-only checks (Ceph, nightly vzdump, CephFS snapshot and backup timers, swarm
-   services, `media-remote`) and `scripts/drift` (23 runs, with `portainer_stacks.yml`).
-7. Before the next full shutdown, fix `docs/move.md` step 7 (backlog, the watchdog reset).
+3. Start sabnzbd, slskd and aurral on appbox1 (approval). `ssh appbox1` does not work, use
+   `uv run ansible appbox1`.
+4. Run the read-only checks (Ceph, nightly vzdump, CephFS snapshot and backup timers, swarm
+   services, `media-remote`) and `scripts/drift`. Apply the timezone, NTP and "UK Routed"
+   changes with approval.
+5. Before the next full shutdown, fix `docs/move.md` step 7 (backlog, the watchdog reset).
 
 appbox1 stays up in Amsterdam. While the lab is off, its apps cannot reach `*.<domain>`
 (proxy1 is off), so Prowlarr cannot reach Deluge (backlog). The arr apps are off too, so this
@@ -209,13 +229,16 @@ gaps. Ombi waits for a stable 4.60.
 
 ## Dates and things craig owes
 
-- craig (reMarkable `/homelab/dns2-checks-2026-10-20`): .54 as DNS server 2 in UniFi DHCP
-  and in the Tailscale admin, and the adguard2 login. Deferred until the new network exists.
+- craig: the prep checklist `/homelab/unifi-bench-prep` (UCG exchange, SSID names, Ceph
+  switch model, MACs, bench items).
+- craig: .54 in the Tailscale admin DNS, and the adguard2 login
+  (`/homelab/dns2-checks-2026-10-20`). The new UniFi DHCP gives .54 from the spec.
 - craig: delete the protected old-guest PBS snapshots when they are no longer needed. Create
   1Password `pve-root`. The proxy routing review (8b) when craig wants it. Decide what to do
   with the private archive, and with the local branches `fix-setup` and `pre-squash`.
-- About 2026-12-15: make sure that proxy1 renewed its certificates. By 2027-01-13: renew
-  `tailscale-authkey`. By 2027-01-19: renew `tailscale-authkey-appbox`.
+- certbot on proxy1 renews from 2026-12-15, but only when the lab runs. The certificates
+  expire on 2027-01-14. Make sure that they renew soon after power-on.
+- By 2027-01-13: renew `tailscale-authkey`. By 2027-01-19: renew `tailscale-authkey-appbox`.
 
 ## Kickoff prompt for the next session
 
@@ -225,16 +248,15 @@ We're continuing the homelab Ansible work in ~/Projects/homelab.
 Before doing anything, read AGENTS.md, docs/agents/handover.md, docs/agents/learnings.md and
 docs/agents/backlog.md, then summarise back to me in a few lines where we are.
 
-The lab is off after the house move. Pull my marks with
-`offmark read /homelab/move-shutdown-2026-10-22`, ask me what the new network looks like and
-plan the power-on against docs/move.md. After power-on, start sabnzbd, slskd and aurral on
-appbox1 when I approve, then run the read-only checks (Ceph health and crashes, nightly
-vzdump, CephFS snapshot and backup timers, swarm services, appbox1's media-remote stack) and
-scripts/drift.
+Today is the UniFi bench setup. Pull my prep checklist with
+`offmark read /homelab/unifi-bench-prep`, fill in the values it gives, then guide me through
+the UCG-Fiber setup and adoption per docs/network.md. Then build the unifi_network role
+against the spec in group_vars/all/unifi.yml: API reads first, --check --diff, and a real
+run only when I approve.
 
 Rules: nothing that affects running services without my explicit approval for that
 specific action; --check first, one host at a time; never print secrets; tick
 docs/agents/backlog.md and update docs/agents/handover.md as work lands; add learnings only to
-docs/agents/learnings.md; commit often with conventional commits; never push;
+docs/agents/learnings.md; commit often with conventional commits on main; never push;
 ask through AskUserQuestion.
 ```
