@@ -41,9 +41,9 @@ The spec is `inventories/prod/group_vars/all/unifi.yml`. The Wi-Fi passphrases a
 1Password (`unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest`). craig has the prep
 checklist on the reMarkable (`/homelab/unifi-bench-prep`).
 
-- [ ] craig exchanges the UXG-Fiber for a UCG-Fiber (the UXG has no Network app).
+- [ ] The UCG-Fiber arrives (craig exchanged the UXG-Fiber, delivery pending).
 - [ ] SSID names (craig, on the prep checklist). Set them in `private.yml` (now `TBD-*`).
-- [ ] MACs of the NAS, the KVMs and Home Assistant (prep checklist, or the client list).
+- [ ] MACs of the NAS and the KVMs (prep checklist, or the client list).
 - [ ] NAS bond mode (DSM): LACP needs Flex ports 7 and 8 as an aggregate. Check that the
       Flex 2.5G 8 supports link aggregation.
 - [ ] Bench setup of the UCG: local admin and API key in 1Password. Then adopt the Flex,
@@ -121,7 +121,8 @@ Steps 0-10 and 9e are done (rebuild runbook `docs/rebuild.md`).
         network.
 - [ ] 8b. Proxy routing review (craig: a later phase). 30 proxy hosts remain. These still
       fail: `minio.nassie`, `s3.nassie` (NAS :9011/:9010, 502) and `ha`
-      (192.168.100.186:8123, 502).
+      (192.168.100.186:8123, 502). No Home Assistant guest or stack existed on 2026-10-14
+      (audit), so `ha` points at nothing.
 - [ ] Delete the protected PBS snapshots of the old guests when craig does not need them.
       The NAS also keeps `postgres-backups/db1-final-2026-10-16/` and `lab-backup/cephfs`
       from 2026-10-16 (68 GB).

@@ -171,8 +171,8 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 
 - The lab is still off. craig moves into the new house (UK) in about a month, about
   2026-12-20. The UniFi gear stays at the old place, so new gear is set up on a bench first.
-- Gear: UCG-Fiber (craig exchanges the UXG-Fiber that came by mistake, which has no Network
-  app), USW-Flex-2.5G-8, the old Ceph switch (USW-Flex-2.5G-5, adopted again after a factory reset),
+- Gear: UCG-Fiber (craig exchanged the UXG-Fiber, which has no Network app; delivery
+  pending), USW-Flex-2.5G-8, the old Ceph switch (USW-Flex-2.5G-5, adopted again after a factory reset),
   U7 Pro XG Wall (wired, 10G PoE injector) and two U7 Pro Wall (mesh, injectors).
 - The spec is `inventories/prod/group_vars/all/unifi.yml` (networks, Wi-Fi, fixed IPs,
   switch ports). Hardware, WAN and setup order are in `docs/network.md`.
@@ -228,7 +228,7 @@ gaps. Ombi waits for a stable 4.60.
 
 ## Dates and things craig owes
 
-- craig: the prep checklist `/homelab/unifi-bench-prep` (UCG exchange, SSID names, MACs,
+- craig: the prep checklist `/homelab/unifi-bench-prep` (UCG delivery, SSID names, MACs,
   bench items).
 - craig: .54 in the Tailscale admin DNS, and the adguard2 login
   (`/homelab/dns2-checks-2026-10-20`). The new UniFi DHCP gives .54 from the spec.

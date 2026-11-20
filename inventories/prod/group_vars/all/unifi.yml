@@ -60,7 +60,6 @@ unifi_network_clients:
   - {name: pve1, network: Lab, ip: 192.168.100.10, mac: "98:fa:9b:a8:77:0d"}
   - {name: pve2, network: Lab, ip: 192.168.100.20, mac: "8c:16:45:a5:70:27"}
   - {name: pve3, network: Lab, ip: 192.168.100.30, mac: "98:fa:9b:04:2e:16"}
-  - {name: homeassistant, network: Lab, ip: 192.168.100.186, mac: ~}
 
 # Switch ports: native network, and the tagged networks (all, or a list; none if
 # absent). The name is the far end of the cable.

@@ -52,7 +52,7 @@ accepted. The range does not clash with any network in the spec.
 3. Run the `unifi_network` role: `--check --diff`, then a real run.
 4. Set the Ceph switch ports before you connect pve1-3 to it. After a reset, all its ports
    are on Home. The Ceph traffic then floods into Home through the uplink.
-5. Read the MACs of the NAS, the KVMs and Home Assistant from the client list into
+5. Read the MACs of the NAS and the KVMs from the client list into
    `unifi_network_clients`.
 
 ## Not known yet
