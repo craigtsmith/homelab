@@ -1,4 +1,8 @@
 ---
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ proxmox_node_timezone }}"
+
 - name: Configure apt sources and apt hooks
   ansible.builtin.copy:
     src: "{{ item.src }}"

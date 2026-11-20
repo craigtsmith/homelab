@@ -149,7 +149,7 @@ flowchart LR
 flowchart LR
   subgraph nightly["nightly"]
     snap["01:15 UTC<br/>cephfs-snapshot.timer on pve1-3"]
-    vz["02:00 Europe/Amsterdam<br/>vzdump job nightly-pbs"]
+    vz["02:00 Europe/London<br/>vzdump job nightly-pbs"]
     cb["03:30<br/>cephfs-backup.timer on util1"]
   end
   hourly["hourly<br/>db-backup.timer on db1"]

@@ -32,3 +32,5 @@ pbs_server_namespaces:
 # again, and its secret goes to the 1Password item, field `credential`.
 pbs_server_tokens:
   - { user: cephfs-backup@pbs, name: util1, store: pbs-nas, ns: cephfs, item: pbs-cephfs-backup }
+
+pbs_server_timezone: "{{ tz }}"

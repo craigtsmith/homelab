@@ -137,7 +137,7 @@ State on 2026-10-23. Read `AGENTS.md` first. Then read this file,
 - CephFS backup: `cephfs-snapshot.timer` on pve1-3 (01:15 UTC, keeps 3 `scheduled-*` in
   `docker/.snap`) and `cephfs-backup.timer` on util1 (03:30) to the PBS namespace `cephfs`.
   The age limit is 26 h. `scripts/drift` reports the age of the newest backup.
-- Nightly vzdump (job `nightly-pbs`, 02:00 Europe/Amsterdam) backs up every guest, 900
+- Nightly vzdump (job `nightly-pbs`, 02:00 Europe/London) backs up every guest, 900
   included (`agent: 1,freeze-fs=0` on pbs).
 - Network KVMs for pve1-3 are at 192.168.90.10, .20, .30 (LAN path, web UI on port 80).
 
@@ -177,6 +177,11 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
   The subnets of the old place stay, so `docs/move.md` power-on needs no address plan.
 - The SSID names in `private.yml` are `TBD-*` until craig picks them.
 - Open: backlog, "New UniFi network".
+- The new house is in the UK. `tz` is `Europe/London`, and chrony on pve1-3 uses
+  `*.uk.pool.ntp.org`. `proxmox_node` and `pbs_server` now set the timezone (it was
+  `Europe/Amsterdam`, set by hand). The media-server and media-remote stacks use `{{ tz }}`.
+  The first `scripts/drift` after power-on shows these changes on every host and in both
+  stacks. Apply them with craig's approval (the stacks restart their containers).
 - If power-on is after 2026-12-15, certbot on proxy1 renews late. The certificates expire
   on 2027-01-14.
 

@@ -12,7 +12,8 @@ network.
 1. Configures the apt sources and the Ceph source (`ceph_repo` entry point, also used by
    `ceph_upgrade.yml`), and removes obsolete sources, packages and files.
 2. Installs the utility packages.
-3. Configures GRUB, kernel modules, sysctl, chrony and the NIC offload fix unit.
+3. Sets the timezone. Configures GRUB, kernel modules, sysctl, chrony and the NIC offload
+   fix unit.
 4. Configures `/etc/hosts` and the network interfaces.
 5. Creates the ansible user with its key and passwordless sudo.
 6. Mounts the NAS lab-backup share.

@@ -60,6 +60,12 @@ are stopped on appbox1.
 - [ ] At the new house: VLAN 101 or untagged for the PPPoE (EE says 101, one report says
       untagged).
 - [ ] Check that the UCG answers DNS on 192.168.100.1 (pve1-3 and pbs use it first).
+- [x] The house is in the UK: `tz` Europe/London, UK NTP pool, timezone on the nodes and
+      pbs from Ansible, stack TZ from `tz`.
+- [ ] After power-on: apply the timezone and NTP change (drift shows it on every host and
+      in media-server and media-remote). Approval per host and per stack.
+- [ ] AdGuard client "UK Routed" (192.168.200.0/24, NordVPN upstreams) has no network now.
+      Remove it, or keep it (craig).
 - [ ] Firewall zones: Guest is isolated. Decide whether IoT may reach Lab (DNS on .53/.54
       must work).
 - [ ] At power-on: pve1's OSD stopped without a clean shutdown (watchdog reset). Check

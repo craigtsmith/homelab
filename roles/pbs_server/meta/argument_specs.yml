@@ -4,6 +4,10 @@ argument_specs:
   main:
     short_description: Proxmox Backup Server VM
     options:
+      pbs_server_timezone:
+        type: str
+        default: '{{ tz }}'
+        description: Timezone.
       pbs_server_apt_files:
         type: list
         elements: dict

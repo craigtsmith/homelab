@@ -8,7 +8,7 @@ share.
 
 ## What it does
 
-1. Configures the apt sources and hooks, and the QEMU guest agent.
+1. Sets the timezone. Configures the apt sources and hooks, and the QEMU guest agent.
 2. Configures `/etc/hosts` and the network interfaces (applied at a reboot or `ifreload -a`).
 3. Mounts the NAS shares.
 4. Writes the datastore, prune and verify jobs.

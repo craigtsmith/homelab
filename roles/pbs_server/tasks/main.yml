@@ -1,4 +1,8 @@
 ---
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ pbs_server_timezone }}"
+
 - name: Configure apt sources and apt hooks
   ansible.builtin.copy:
     src: "{{ item.src }}"

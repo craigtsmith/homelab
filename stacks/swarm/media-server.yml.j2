@@ -17,7 +17,7 @@ services:
       - PUID=911
       - PGID=911
       - UMASK=022
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - ORIGIN=https://profilarr.{{ domain }}
     networks:
       - traefik-public
@@ -32,7 +32,7 @@ services:
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - PUID=911
       - PGID=911
       - UMASK=002
@@ -54,7 +54,7 @@ services:
   radarr:
     image: lscr.io/linuxserver/radarr:latest
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - PUID=911
       - PGID=911
       - UMASK=002
@@ -76,7 +76,7 @@ services:
   lidarr:
     image: lscr.io/linuxserver/lidarr:latest
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - PUID=911
       - PGID=911
       - UMASK=002
@@ -98,7 +98,7 @@ services:
   ombi:
     image: lscr.io/linuxserver/ombi:latest
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
     volumes:
       - /mnt/cephfs/docker/ombi:/config
     ports:
@@ -116,7 +116,7 @@ services:
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - PUID=911
       - PGID=911
       - UMASK=002
@@ -138,7 +138,7 @@ services:
   sync:
     image: linuxserver/resilio-sync:3.1.2.1076-1-ls247
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - PUID=911
       - PGID=911
       - UMASK=002
@@ -165,7 +165,7 @@ services:
     restart: unless-stopped
     user: "911:911"
     environment:
-      - TZ=Europe/Amsterdam
+      - TZ={{ tz }}
       - ND_DATAFOLDER=/config
       - ND_MUSICFOLDER=/media/Music
       - ND_SCANNER_PURGEMISSING=always

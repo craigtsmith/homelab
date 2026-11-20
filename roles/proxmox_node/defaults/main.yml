@@ -66,3 +66,5 @@ proxmox_node_cephfs_snapshots:
   - { dir: docker, keep: 3 }
 # UTC, so the name tells the time: 03:15 CEST, 02:15 CET (backup at 03:30)
 proxmox_node_cephfs_snapshot_time: "01:15:00"
+
+proxmox_node_timezone: "{{ tz }}"

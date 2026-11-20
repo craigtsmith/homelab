@@ -21,7 +21,7 @@ This table comes from the hosts, read on 2026-10-21.
 | Swarm volumes, media, paperless | NFS `/volume2/docker`, `Media`, `Paperless` on docker1-3 and util1 (most without `nofail`) | The NAS is reachable before these VMs start |
 | db1 dumps | NFS `/volume2/lab-backup` | The NAS is reachable |
 | Node and pbs resolvers | 192.168.100.1, then 1.1.1.1 | A resolver on .1, or a change to `resolv.conf` |
-| AdGuard upstreams, NTP, certbot, apt, Tailscale | Internet (DoH to Quad9 and Cloudflare, `*.nl.pool.ntp.org`, Cloudflare DNS-01) | Internet through the gateway |
+| AdGuard upstreams, NTP, certbot, apt, Tailscale | Internet (DoH to Quad9 and Cloudflare, `*.uk.pool.ntp.org` (`*.nl` until 2026-11-20), Cloudflare DNS-01) | Internet through the gateway |
 | Tailscale subnet route | tailscale1 advertises 192.168.100.0/24 | The same subnet, or a change to the route |
 | Network KVMs | 192.168.90.10/20/30, routed by UniFi | A route to 192.168.90.0/24, or new addresses |
 

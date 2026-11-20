@@ -3,7 +3,7 @@
 name: media-remote
 
 x-tz: &tz
-  TZ: Europe/Amsterdam
+  TZ: "{{ tz }}"
 
 # *.{{ domain }} is not in public DNS; proxy1 is reached through the tailnet route
 x-hosts: &hosts
