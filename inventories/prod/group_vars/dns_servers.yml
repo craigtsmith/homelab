@@ -96,11 +96,3 @@ dns_server_clients:
     uid: 0198c6df-610f-7140-8327-66e42498c361
     ids: "{{ dns_personal_device_ids }}"
     ignore_querylog: true
-  - name: UK Routed
-    uid: 0198c4f6-4c56-7cdf-8518-59bf36c46ad9
-    ids:
-      - 192.168.200.0/24
-    upstreams:
-      - 103.86.96.100
-      - 103.86.99.100
-    upstreams_cache_enabled: true

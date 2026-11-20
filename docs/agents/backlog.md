@@ -64,8 +64,8 @@ are stopped on appbox1.
       pbs from Ansible, stack TZ from `tz`.
 - [ ] After power-on: apply the timezone and NTP change (drift shows it on every host and
       in media-server and media-remote). Approval per host and per stack.
-- [ ] AdGuard client "UK Routed" (192.168.200.0/24, NordVPN upstreams) has no network now.
-      Remove it, or keep it (craig).
+- [x] Removed the AdGuard client "UK Routed" (192.168.200.0/24) from the repo (craig).
+- [ ] After power-on: `dns_servers.yml` on dns1, then dns2 removes it live (approval).
 - [ ] Firewall zones: Guest is isolated. Decide whether IoT may reach Lab (DNS on .53/.54
       must work).
 - [ ] At power-on: pve1's OSD stopped without a clean shutdown (watchdog reset). Check
