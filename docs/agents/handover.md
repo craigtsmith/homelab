@@ -181,8 +181,8 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
   and `docs/move.md` power-on needs no address plan. Home, IoT and Lab DHCP give .53 and .54
   as DNS. No DHCP domain name.
 - Ports: UCG 1 is the WAN (EE PPPoE, Openreach ONT), UCG 5 (10 GbE) the XG Wall, UCG 6 the
-  Flex (DAC). Flex 1-3 pve1-3, 4-6 the KVMs, 7 the NAS, 8 the Ceph switch.
-  Ceph switch 1 uplink, 2-4 `enp2s0` of pve1-3.
+  Flex (DAC). Flex 1-3 pve1-3, 4-6 the KVMs, 7-8 the NAS bond. UCG 2 the Ceph switch (its port 1),
+  Ceph switch 2-4 `enp2s0` of pve1-3. The NAS bond mode is not known (LACP or not).
 - 1Password: `unifi-wifi-home`, `unifi-wifi-iot`, `unifi-wifi-guest` (generated). The SSID
   names in `private.yml` are `TBD-*`.
 - The role `unifi_network` does not exist yet. The Integration API writes networks and
@@ -199,8 +199,8 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 
 1. Pull craig's prep checklist: `offmark read /homelab/unifi-bench-prep`. Put the SSID names
    in `private.yml`, and the MACs in `unifi_network_clients`.
-2. Check the bench WAN: if craig's current router uses 192.168.1.0/24, it clashes with
-   Home. Plan around it before the UCG setup.
+2. Check the bench WAN (double NAT through craig's router is accepted): if that router uses
+   192.168.1.0/24, it clashes with Home. Plan around it before the UCG setup.
 3. craig sets up the UCG with a local admin. Put the login and an API key in 1Password.
 4. Adopt the Flex, the Ceph switch and the APs.
 5. Build `unifi_network` (backlog). Prove each API read first, then `--check --diff`, then a

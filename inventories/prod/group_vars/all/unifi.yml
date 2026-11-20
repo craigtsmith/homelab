@@ -52,6 +52,7 @@ unifi_network_wifi:
 # Fixed IPs. mac: ~ means not known yet (read it from the client list after the
 # first connect). Lab guests will come from guests.yml (net0 MAC and the static IP).
 unifi_network_clients:
+  # The bond has 2 MACs. The fixed IP goes on the MAC that the bond uses.
   - {name: nas, network: Home, ip: 192.168.1.50, mac: ~}
   - {name: kvm-pve1, network: KVM, ip: 192.168.90.10, mac: ~}
   - {name: kvm-pve2, network: KVM, ip: 192.168.90.20, mac: ~}
@@ -68,6 +69,7 @@ unifi_network_ports:
   ucg-fiber:
     - {port: 5, name: ap-u7-pro-xg-wall, native: Home, tagged: [IoT, Guest]}
     - {port: 6, name: flex, native: Home, tagged: all}
+    - {port: 2, name: ceph-switch, native: Home}
   flex:
     - {port: 1, name: pve1-eno1, native: Lab, tagged: all}
     - {port: 2, name: pve2-eno1, native: Lab, tagged: all}
@@ -75,9 +77,10 @@ unifi_network_ports:
     - {port: 4, name: kvm-pve1, native: KVM}
     - {port: 5, name: kvm-pve2, native: KVM}
     - {port: 6, name: kvm-pve3, native: KVM}
-    - {port: 7, name: nas, native: Home}
-    - {port: 8, name: ceph-switch, native: Home}
-  # USW-Flex-2.5G-5. Port 1 (PoE in) is the uplink. Ceph traffic stays on this
+    # NAS bond. LACP aggregate or plain ports: not known yet (DSM bond mode)
+    - {port: 7, name: nas-lan1, native: Home}
+    - {port: 8, name: nas-lan2, native: Home}
+  # USW-Flex-2.5G-5. Port 1 (PoE in) is the uplink to UCG port 2. Ceph traffic stays on this
   # switch: the uplink does not carry VLAN 5. Port 5 is spare.
   ceph-switch:
     - {port: 1, name: flex, native: Home}

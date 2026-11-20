@@ -44,7 +44,9 @@ checklist on the reMarkable (`/homelab/unifi-bench-prep`).
 - [ ] craig exchanges the UXG-Fiber for a UCG-Fiber (the UXG has no Network app).
 - [ ] SSID names (craig, on the prep checklist). Set them in `private.yml` (now `TBD-*`).
 - [ ] MACs of the NAS, the KVMs and Home Assistant (prep checklist, or the client list).
-- [ ] Bench WAN: if the current router also uses 192.168.1.0/24, the UCG WAN and Home
+- [ ] NAS bond mode (DSM): LACP needs Flex ports 7 and 8 as an aggregate. Check that the
+      Flex 2.5G 8 supports link aggregation.
+- [ ] Bench WAN: double NAT through the current router is accepted. If that router also uses 192.168.1.0/24, the UCG WAN and Home
       clash. Use a different bench LAN on the current router, or a temporary Home subnet.
 - [ ] Bench setup of the UCG: local admin and API key in 1Password. Then adopt the Flex,
       the Ceph switch (after its factory reset) and the APs.

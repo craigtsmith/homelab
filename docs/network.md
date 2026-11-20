@@ -11,7 +11,7 @@ the setup order. The subnets are the same as at the old place, so the hosts need
 | --- | --- |
 | UCG-Fiber | Gateway and UniFi Network app. WAN: Openreach ONT on port 1 (2.5 GbE) |
 | USW-Flex-2.5G-8 | Rack switch, uplink on its SFP+ to UCG port 6 (DAC) |
-| USW-Flex-2.5G-5 (Ceph switch) | Ceph network only (`enp2s0` of pve1-3 on ports 2-4). Port 1 uplinks to Flex port 8 for management. USB-C power |
+| USW-Flex-2.5G-5 (Ceph switch) | Ceph network only (`enp2s0` of pve1-3 on ports 2-4). Port 1 uplinks to UCG port 2 for management. USB-C power |
 | U7 Pro XG Wall | Wired AP: UCG port 5 (10 GbE) to the LAN in of a 10G PoE injector, PoE out to the AP |
 | U7 Pro Wall (2) | Wireless mesh to the XG Wall, power from injectors |
 
@@ -42,6 +42,8 @@ page, through [eggg.uk/scraps/fttp](https://eggg.uk/scraps/fttp/):
 
 ## Setup order (bench, before the move)
 
+The bench WAN is craig's current router (double NAT, accepted).
+
 1. Set up the UCG-Fiber with a local admin. Put the login and an API key
    (Settings, Control Plane, Integrations) in 1Password.
 2. Adopt the Flex, the Ceph switch and the APs. A switch that was adopted at the old place
@@ -53,6 +55,9 @@ page, through [eggg.uk/scraps/fttp](https://eggg.uk/scraps/fttp/):
    `unifi_network_clients`.
 
 ## Not known yet
+
+- The bond mode of the NAS (DSM, Network, Network Interface, Bond). With LACP, Flex ports 7
+  and 8 are an aggregate. With adaptive load balancing, they are plain ports.
 
 - The SSID names (craig).
 - Whether EE needs VLAN 101 on this line.
