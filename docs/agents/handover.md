@@ -199,8 +199,7 @@ with craig's approval per step. craig did step 8 and packed the Ceph switch.
 
 1. Pull craig's prep checklist: `offmark read /homelab/unifi-bench-prep`. Put the SSID names
    in `private.yml`, and the MACs in `unifi_network_clients`.
-2. Check the bench WAN (double NAT through craig's router is accepted): if that router uses
-   192.168.1.0/24, it clashes with Home. Plan around it before the UCG setup.
+2. The bench WAN is craig's router on 192.168.0.0/24 (double NAT, no clash with the spec).
 3. craig sets up the UCG with a local admin. Put the login and an API key in 1Password.
 4. Adopt the Flex, the Ceph switch and the APs.
 5. Build `unifi_network` (backlog). Prove each API read first, then `--check --diff`, then a

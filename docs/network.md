@@ -42,7 +42,8 @@ page, through [eggg.uk/scraps/fttp](https://eggg.uk/scraps/fttp/):
 
 ## Setup order (bench, before the move)
 
-The bench WAN is craig's current router (double NAT, accepted).
+The bench WAN is craig's current router on 192.168.0.0/24 (gateway .0.1). Double NAT is
+accepted. The range does not clash with any network in the spec.
 
 1. Set up the UCG-Fiber with a local admin. Put the login and an API key
    (Settings, Control Plane, Integrations) in 1Password.

@@ -46,8 +46,6 @@ checklist on the reMarkable (`/homelab/unifi-bench-prep`).
 - [ ] MACs of the NAS, the KVMs and Home Assistant (prep checklist, or the client list).
 - [ ] NAS bond mode (DSM): LACP needs Flex ports 7 and 8 as an aggregate. Check that the
       Flex 2.5G 8 supports link aggregation.
-- [ ] Bench WAN: double NAT through the current router is accepted. If that router also uses 192.168.1.0/24, the UCG WAN and Home
-      clash. Use a different bench LAN on the current router, or a temporary Home subnet.
 - [ ] Bench setup of the UCG: local admin and API key in 1Password. Then adopt the Flex,
       the Ceph switch (after its factory reset) and the APs.
 - [ ] Role `unifi_network` (localhost, `uri`): networks and Wi-Fi through the Integration
